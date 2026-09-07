@@ -228,9 +228,11 @@ def optimise(prices, cost_bps):
     series = {}
     for candidate_id, params in enumerate(candidate_grid(), start=1):
         net, turnover, weights = backtest(prices, params, cost_bps)
-        stressed_net, stressed_turnover, _ = backtest(
-            prices, params, cost_bps * 1.5
-        )
+        # Positions do not change in a cost stress, so reuse them instead of
+        # recomputing the entire state machine.
+        extra_cost = turnover * (cost_bps * 0.5 / 10000.0)
+        stressed_net = net - extra_cost
+        stressed_turnover = turnover
         train = segment_stats(net, turnover, 0, train_end)
         validation = segment_stats(net, turnover, train_end, validation_end)
         test = segment_stats(net, turnover, validation_end, n)
