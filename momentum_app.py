@@ -5,7 +5,7 @@ import pandas as pd
 import streamlit as st
 
 
-APP_TITLE = "Momentum Trader — V7 Risk-Managed Lab"
+APP_TITLE = "Momentum Trader — V8 Validated Lab"
 DEFAULT_TICKERS = [
     "VWRP.L", "SWDA.L", "CSP1.L", "EQQQ.L", "IITU.L", "EMIM.L", "IGLN.L"
 ]
@@ -171,7 +171,7 @@ def segment_stats(net, turnover, start, end):
     if segment_net.empty:
         return {
             "return": np.nan, "max_dd": np.nan, "sharpe": np.nan,
-            "actions": 0, "turnover": 0.0, "active_days": 0,
+            "actions": 0, "turnover": 0.0, "active_days": 0, "days": 0,
         }
     equity = (1.0 + segment_net).cumprod()
     drawdown = equity / equity.cummax() - 1.0
@@ -195,6 +195,7 @@ def segment_stats(net, turnover, start, end):
         "actions": int((segment_turnover > 1e-12).sum()),
         "turnover": float(segment_turnover.sum()),
         "active_days": int(active.sum()),
+        "days": int(len(daily)),
     }
 
 
@@ -272,6 +273,8 @@ def optimise(prices, cost_bps):
             "test_max_dd": test["max_dd"],
             "test_actions": test["actions"],
             "stressed_test_return": stressed_test["return"],
+            "selection_actions": train["actions"] + validation["actions"],
+            "selection_days": train["days"] + validation["days"],
             "total_actions": int((turnover > 1e-12).sum()),
             "total_turnover": float(turnover.sum()),
             "params": params,
@@ -287,7 +290,11 @@ def optimise(prices, cost_bps):
     robust_pool = results[
         (results["train_return"] > 0.0)
         & (results["validation_return"] > 0.0)
-        & (results["total_actions"] <= 80)
+        & (
+            results["selection_actions"]
+            / results["selection_days"].clip(lower=1)
+            <= 0.5
+        )
     ]
     selection_pool = robust_pool if not robust_pool.empty else results
     winner = selection_pool.nlargest(1, "stability").iloc[0]
@@ -318,8 +325,13 @@ def optimise(prices, cost_bps):
         and holdout["return"] > 0.0
         and winner["stressed_test_return"] > 0.0
         and holdout["max_dd"] > -0.08
-        and holdout["actions"] <= 40
-        and winner["total_actions"] <= 150
+        and holdout["actions"] / max(holdout["days"], 1) <= 0.5
+        and winner["total_actions"] / max(
+            stats["Train"]["days"]
+            + stats["Validation"]["days"]
+            + stats["Holdout"]["days"],
+            1,
+        ) <= 0.5
     )
     return results, winner["params"], stats, benchmark, net, weights, passed
 
@@ -344,7 +356,7 @@ def current_snapshot(prices, params):
 
 
 with st.sidebar:
-    st.header("V7 settings")
+    st.header("V8 settings")
     initial = st.number_input("Paper capital (£)", min_value=100.0, value=1000.0, step=100.0)
     cost_bps = st.number_input(
         "One-way spread + slippage (bps)", min_value=0.0, value=8.0, step=1.0,
@@ -354,9 +366,9 @@ with st.sidebar:
     tickers = [item.strip().upper() for item in ticker_text.split(",") if item.strip()]
 
 
-st.subheader("V7 feedback loop")
+st.subheader("V8 feedback loop")
 st.write(
-    "V7 tests 48 variants across roughly **two years of hourly data**. It selects on "
+    "V8 tests 48 variants across roughly **two years of hourly data**. It selects on "
     "the weaker of training and validation performance, then reveals the final 20% "
     "only after selection. Every candidate is also stressed at 1.5× trading costs."
 )
@@ -367,8 +379,8 @@ st.caption(
 )
 
 left, middle, right = st.columns(3)
-optimise_btn = left.button("Run V7 risk-managed loop", use_container_width=True)
-signal_btn = middle.button("Current V7 signal", use_container_width=True)
+optimise_btn = left.button("Run V8 validation loop", use_container_width=True)
+signal_btn = middle.button("Current V8 signal", use_container_width=True)
 paper_btn = right.button("Record paper decision", use_container_width=True)
 
 prices = None
@@ -379,20 +391,20 @@ if optimise_btn or signal_btn or paper_btn:
     except Exception as error:
         st.error(f"Market data could not be loaded: {error}")
 else:
-    st.info("Start with ‘Run V7 risk-managed loop’. Market data loads only when requested.")
+    st.info("Start with ‘Run V8 validation loop’. Market data loads only when requested.")
 
 
 if optimise_btn and prices is not None:
     with st.spinner("Running the train → validation → holdout feedback loop…"):
         results, params, stats, benchmark, net, weights, passed = optimise(prices, cost_bps)
-    st.session_state.v7_params = params
-    st.session_state.v7_passed = passed
-    st.session_state.v7_stats = stats
+    st.session_state.v8_params = params
+    st.session_state.v8_passed = passed
+    st.session_state.v8_stats = stats
 
     if passed:
-        st.success("V7 safety gate: PASSED. Continue paper testing; this is not live-trading approval.")
+        st.success("V8 safety gate: PASSED. Continue paper testing; this is not live-trading approval.")
     else:
-        st.warning("Safety gate: FAILED. V7 will recommend CASH until a robust edge is demonstrated.")
+        st.warning("Safety gate: FAILED. V8 will recommend CASH until a robust edge is demonstrated.")
 
     st.subheader("Selected model: honest split results")
     metric_columns = st.columns(3)
@@ -414,7 +426,7 @@ if optimise_btn and prices is not None:
     st.subheader("Selected controls")
     st.json(params)
     equity = initial * (1.0 + net).cumprod()
-    st.line_chart(equity.rename("V7 modelled equity"))
+    st.line_chart(equity.rename("V8 modelled equity"))
 
     st.subheader("Sensitivity across all 48 candidates")
     show = results.drop(columns=["params"]).sort_values("validation_score", ascending=False).copy()
@@ -425,8 +437,8 @@ if optimise_btn and prices is not None:
 
 def active_configuration():
     return (
-        st.session_state.get("v7_params", DEFAULT_PARAMS),
-        bool(st.session_state.get("v7_passed", False)),
+        st.session_state.get("v8_params", DEFAULT_PARAMS),
+        bool(st.session_state.get("v8_passed", False)),
     )
 
 
@@ -434,14 +446,14 @@ if signal_btn and prices is not None:
     params, passed = active_configuration()
     timestamp, table = current_snapshot(prices, params)
     selected = table[table["Model weight"] > 0.0]["Model weight"]
-    st.subheader(f"Current V7 signal — {timestamp}")
+    st.subheader(f"Current V8 signal — {timestamp}")
     if not passed:
-        st.warning("V7 safety gate has not passed: CASH 100%")
+        st.warning("V8 safety gate has not passed: CASH 100%")
     elif selected.empty:
-        st.success("V7 signal: CASH 100%")
+        st.success("V8 signal: CASH 100%")
     else:
         st.success(
-            "V7 paper signal: "
+            "V8 paper signal: "
             + ", ".join(f"{ticker} {weight:.0%}" for ticker, weight in selected.items())
         )
     display = table.copy()
@@ -452,8 +464,8 @@ if signal_btn and prices is not None:
     st.dataframe(display, use_container_width=True)
 
 
-if "paper_log_v7" not in st.session_state:
-    st.session_state.paper_log_v7 = []
+if "paper_log_v8" not in st.session_state:
+    st.session_state.paper_log_v8 = []
 
 if paper_btn and prices is not None:
     params, passed = active_configuration()
@@ -465,27 +477,27 @@ if paper_btn and prices is not None:
             f"{ticker} {weight:.0%}" for ticker, weight in selected.items()
         )
     record = {"time": str(timestamp), "capital": float(initial), "allocation": allocation}
-    duplicate = any(row["time"] == record["time"] for row in st.session_state.paper_log_v7)
+    duplicate = any(row["time"] == record["time"] for row in st.session_state.paper_log_v8)
     if duplicate:
         st.info("That market timestamp is already recorded; no duplicate was added.")
     else:
-        st.session_state.paper_log_v7.append(record)
+        st.session_state.paper_log_v8.append(record)
         st.success(f"Recorded: {allocation}")
 
-if st.session_state.paper_log_v7:
+if st.session_state.paper_log_v8:
     st.subheader("Paper decision log")
-    log = pd.DataFrame(st.session_state.paper_log_v7)
+    log = pd.DataFrame(st.session_state.paper_log_v8)
     st.dataframe(log, use_container_width=True, hide_index=True)
     st.download_button(
         "Download paper log (CSV)",
         log.to_csv(index=False).encode("utf-8"),
-        file_name="momentum_v7_paper_log.csv",
+        file_name="momentum_v8_paper_log.csv",
         mime="text/csv",
     )
 
 st.divider()
 st.caption(
     "Research limitation: yfinance hourly data is not execution-grade. A positive holdout is "
-    "only permission to continue forward paper testing, never proof of future profit. V7 "
+    "only permission to continue forward paper testing, never proof of future profit. V8 "
     "deliberately cannot place a real order."
 )
