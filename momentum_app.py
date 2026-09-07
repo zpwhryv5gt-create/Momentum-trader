@@ -1,26 +1,32 @@
+from itertools import product
+
 import numpy as np
 import pandas as pd
 import streamlit as st
 
 
-APP_TITLE = "Momentum Trader — V3 Intraday"
+APP_TITLE = "Momentum Trader — V4 Robust Lab"
 DEFAULT_TICKERS = [
-    "VWRP.L",
-    "SWDA.L",
-    "CSP1.L",
-    "EQQQ.L",
-    "IITU.L",
-    "EMIM.L",
-    "IGLN.L",
+    "VWRP.L", "SWDA.L", "CSP1.L", "EQQQ.L", "IITU.L", "EMIM.L", "IGLN.L"
 ]
-EVAL_EVERY_BARS = 3  # 15 minutes when using five-minute bars
+DEFAULT_PARAMS = {
+    "eval_bars": 12,
+    "ema_fast": 78,
+    "ema_slow": 390,
+    "mom_fast": 12,
+    "mom_mid": 78,
+    "mom_long": 390,
+    "min_hold_bars": 78,
+    "switch_buffer": 0.004,
+    "entry_floor": 0.0005,
+}
 
 
 st.set_page_config(page_title=APP_TITLE, layout="wide")
 st.title(APP_TITLE)
 st.caption(
-    "Experimental intraday momentum dashboard. Paper/research use only — "
-    "no broker connection and no live orders."
+    "Low-turnover, cost-aware momentum research with train/validation/holdout testing. "
+    "Paper use only — no broker connection and no live orders."
 )
 
 
@@ -29,7 +35,6 @@ def download_intraday(tickers, period="60d", interval="5m"):
 
     if not tickers:
         raise ValueError("Enter at least one ticker.")
-
     raw = yf.download(
         tickers,
         period=period,
@@ -39,7 +44,7 @@ def download_intraday(tickers, period="60d", interval="5m"):
         group_by="column",
         threads=True,
         prepost=False,
-        timeout=20,
+        timeout=25,
     )
     if raw.empty:
         raise RuntimeError("No intraday market data returned.")
@@ -55,7 +60,6 @@ def download_intraday(tickers, period="60d", interval="5m"):
 
     if isinstance(prices, pd.Series):
         prices = prices.to_frame()
-
     prices = prices.sort_index().dropna(how="all")
     prices = prices.ffill(limit=3).dropna(axis=1, how="all")
     if prices.empty:
@@ -63,85 +67,151 @@ def download_intraday(tickers, period="60d", interval="5m"):
     return prices
 
 
-def signal_components(prices):
-    # Five-minute bars: 15m = 3 bars, 60m = 12 bars, one session ~= 78 bars.
-    r15 = prices / prices.shift(3) - 1
-    r60 = prices / prices.shift(12) - 1
-    r1d = prices / prices.shift(78) - 1
-    score = 0.50 * r15 + 0.30 * r60 + 0.20 * r1d
+def components(prices, params):
+    r_fast = prices / prices.shift(params["mom_fast"]) - 1.0
+    r_mid = prices / prices.shift(params["mom_mid"]) - 1.0
+    r_long = prices / prices.shift(params["mom_long"]) - 1.0
+    score = 0.20 * r_fast + 0.50 * r_mid + 0.30 * r_long
+    ema_fast = prices.ewm(span=params["ema_fast"], adjust=False).mean()
+    ema_slow = prices.ewm(span=params["ema_slow"], adjust=False).mean()
+    trend = (prices > ema_fast) & (ema_fast > ema_slow)
+    eligible = (
+        trend
+        & (r_fast > params["entry_floor"])
+        & (r_mid > 0.0)
+        & (r_long > 0.0)
+        & (score > 0.0)
+    )
+    return score, ema_fast, ema_slow, trend, eligible, {
+        "1h": r_fast,
+        "1d": r_mid,
+        "5d": r_long,
+    }
 
-    ema20 = prices.ewm(span=20, adjust=False).mean()
-    ema60 = prices.ewm(span=60, adjust=False).mean()
-    trend_ok = (prices > ema20) & (ema20 > ema60)
-    eligible = trend_ok & (r15 > 0) & (r60 > 0) & (score > 0)
-    return score, ema20, ema60, eligible, {"15m": r15, "60m": r60, "1d": r1d}
 
+def target_weights(prices, params):
+    """Stateful one-position engine with hysteresis and a next-bar execution lag."""
+    score, _, _, trend, eligible, _ = components(prices, params)
+    decisions = pd.DataFrame(np.nan, index=prices.index, columns=prices.columns)
+    current = None
+    entry_bar = -10**9
 
-def build_target_weights(prices, top_n=1):
-    score, _, _, eligible, _ = signal_components(prices)
-    eval_dates = prices.index[::EVAL_EVERY_BARS]
-    signals = pd.DataFrame(0.0, index=eval_dates, columns=prices.columns)
+    warmup = max(params["ema_slow"], params["mom_long"])
+    eval_rows = range(warmup, len(prices), params["eval_bars"])
+    for row in eval_rows:
+        timestamp = prices.index[row]
+        next_position = current
+        held_long_enough = row - entry_bar >= params["min_hold_bars"]
 
-    for timestamp in eval_dates:
-        valid = (
-            score.loc[timestamp]
-            .where(eligible.loc[timestamp])
-            .dropna()
-            .sort_values(ascending=False)
-        )
-        winners = valid.head(top_n).index.tolist()
-        if winners:
-            signals.loc[timestamp, winners] = 1.0 / len(winners)
+        valid = score.loc[timestamp].where(eligible.loc[timestamp]).dropna()
+        best = valid.idxmax() if not valid.empty else None
 
-    weights = signals.reindex(prices.index).ffill().fillna(0.0)
+        if current is not None:
+            current_trend = bool(trend.loc[timestamp].get(current, False))
+            current_mid = prices[current].iloc[row] / prices[current].iloc[
+                max(0, row - params["mom_mid"])
+            ] - 1.0
+            # Risk exits are immediate; rotation requires a minimum hold and a margin.
+            if (not current_trend) or (not np.isfinite(current_mid)) or current_mid < -0.002:
+                next_position = None
+            elif best is not None and best != current and held_long_enough:
+                incumbent_score = score.loc[timestamp].get(current, np.nan)
+                advantage = valid.loc[best] - incumbent_score
+                if np.isfinite(advantage) and advantage > params["switch_buffer"]:
+                    next_position = best
+        elif best is not None:
+            next_position = best
+
+        if next_position != current:
+            entry_bar = row
+        current = next_position
+        decisions.loc[timestamp] = 0.0
+        if current is not None:
+            decisions.loc[timestamp, current] = 1.0
+
+    weights = decisions.ffill().fillna(0.0)
+    # A decision made using a bar close can only be acted on from the next bar.
     return weights.shift(1).fillna(0.0)
 
 
-def signal_snapshot(prices, top_n=1):
-    score, ema20, ema60, eligible, components = signal_components(prices)
-    latest = prices.index[-1]
-    data = {"Price": prices.loc[latest]}
-    for label, frame in components.items():
-        data[label] = frame.loc[latest]
-    data["Score"] = score.loc[latest]
-    data["EMA20"] = ema20.loc[latest]
-    data["EMA60"] = ema60.loc[latest]
-
-    table = pd.DataFrame(data)
-    table["Trend OK"] = (table["Price"] > table["EMA20"]) & (
-        table["EMA20"] > table["EMA60"]
-    )
-    table["Eligible"] = eligible.loc[latest]
-    ranked = table[table["Eligible"]].sort_values("Score", ascending=False)
-    winners = ranked.head(top_n).index.tolist()
-    table["Target weight"] = 0.0
-    if winners:
-        table.loc[winners, "Target weight"] = 1.0 / len(winners)
-    return latest, table.sort_values("Score", ascending=False)
-
-
-def run_backtest(prices, initial=1000.0, top_n=1, cost_bps=8.0):
-    weights = build_target_weights(prices, top_n=top_n)
-    returns = prices.pct_change().fillna(0.0)
+def backtest(prices, params, cost_bps):
+    weights = target_weights(prices, params)
+    returns = prices.pct_change(fill_method=None).fillna(0.0)
     gross = (weights * returns).sum(axis=1)
-    turnover = weights.diff().abs().sum(axis=1).fillna(weights.abs().sum(axis=1))
+    turnover = weights.diff().abs().sum(axis=1).fillna(0.0)
     costs = turnover * (cost_bps / 10000.0)
     net = gross - costs
-    equity = initial * (1.0 + net).cumprod()
+    return net, turnover, weights
 
-    daily = pd.DataFrame(
-        {"net": net, "turnover": turnover, "action": (turnover > 0).astype(int)}
-    )
+
+def segment_stats(net, turnover, start, end):
+    segment_net = net.iloc[start:end]
+    segment_turnover = turnover.iloc[start:end]
+    if segment_net.empty:
+        return {
+            "return": np.nan, "max_dd": np.nan, "sharpe": np.nan,
+            "actions": 0, "turnover": 0.0, "active_days": 0,
+        }
+    equity = (1.0 + segment_net).cumprod()
+    drawdown = equity / equity.cummax() - 1.0
+    frame = pd.DataFrame({"net": segment_net})
     try:
-        daily.index = daily.index.tz_convert("Europe/London")
+        frame.index = frame.index.tz_convert("Europe/London")
     except (TypeError, AttributeError):
         pass
-    summary = daily.groupby(daily.index.date).agg(
-        return_frac=("net", lambda values: (1 + values).prod() - 1),
-        turnover=("turnover", "sum"),
-        actions=("action", "sum"),
+    daily = frame.groupby(frame.index.date)["net"].apply(lambda x: (1.0 + x).prod() - 1.0)
+    volatility = daily.std(ddof=1)
+    sharpe = (
+        float(daily.mean() / volatility * np.sqrt(252.0))
+        if len(daily) > 2 and volatility > 0
+        else np.nan
     )
-    return turnover, costs, equity, summary
+    active = segment_turnover.groupby(segment_turnover.index.date).sum() > 0
+    return {
+        "return": float(equity.iloc[-1] - 1.0),
+        "max_dd": float(drawdown.min()),
+        "sharpe": sharpe,
+        "actions": int((segment_turnover > 1e-12).sum()),
+        "turnover": float(segment_turnover.sum()),
+        "active_days": int(active.sum()),
+    }
+
+
+def objective(stats):
+    if not np.isfinite(stats["return"]):
+        return -999.0
+    sharpe = stats["sharpe"] if np.isfinite(stats["sharpe"]) else -1.0
+    inactivity_penalty = 0.02 if stats["actions"] == 0 else 0.0
+    return (
+        stats["return"]
+        + 0.025 * np.clip(sharpe, -3.0, 3.0)
+        + 0.40 * stats["max_dd"]
+        - 0.00025 * stats["actions"]
+        - inactivity_penalty
+    )
+
+
+def candidate_grid():
+    candidates = []
+    for eval_bars, ema_pair, mom_fast, min_hold, switch_buffer in product(
+        [6, 12],
+        [(36, 156), (78, 390)],
+        [12, 36],
+        [78, 156],
+        [0.002, 0.004],
+    ):
+        candidates.append({
+            "eval_bars": eval_bars,
+            "ema_fast": ema_pair[0],
+            "ema_slow": ema_pair[1],
+            "mom_fast": mom_fast,
+            "mom_mid": 78,
+            "mom_long": 390,
+            "min_hold_bars": min_hold,
+            "switch_buffer": switch_buffer,
+            "entry_floor": 0.0005,
+        })
+    return candidates
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -149,134 +219,215 @@ def cached_prices(tickers_tuple):
     return download_intraday(list(tickers_tuple))
 
 
+@st.cache_data(ttl=300, show_spinner=False)
+def optimise(prices, cost_bps):
+    n = len(prices)
+    train_end = int(n * 0.60)
+    validation_end = int(n * 0.80)
+    rows = []
+    series = {}
+    for candidate_id, params in enumerate(candidate_grid(), start=1):
+        net, turnover, weights = backtest(prices, params, cost_bps)
+        train = segment_stats(net, turnover, 0, train_end)
+        validation = segment_stats(net, turnover, train_end, validation_end)
+        test = segment_stats(net, turnover, validation_end, n)
+        rows.append({
+            "candidate": candidate_id,
+            "train_score": objective(train),
+            "validation_score": objective(validation),
+            "train_return": train["return"],
+            "validation_return": validation["return"],
+            "test_return": test["return"],
+            "test_max_dd": test["max_dd"],
+            "test_actions": test["actions"],
+            "total_actions": int((turnover > 1e-12).sum()),
+            "total_turnover": float(turnover.sum()),
+            "params": params,
+        })
+        series[candidate_id] = (net, turnover, weights)
+
+    results = pd.DataFrame(rows)
+    # Train creates a shortlist; validation makes the only selection decision.
+    shortlist = results.nlargest(8, "train_score").copy()
+    shortlist["stability"] = (
+        shortlist["validation_score"]
+        - 0.35 * (shortlist["train_return"] - shortlist["validation_return"]).abs()
+    )
+    winner = shortlist.nlargest(1, "stability").iloc[0]
+    winner_id = int(winner["candidate"])
+    net, turnover, weights = series[winner_id]
+    stats = {
+        "Train": segment_stats(net, turnover, 0, train_end),
+        "Validation": segment_stats(net, turnover, train_end, validation_end),
+        "Holdout": segment_stats(net, turnover, validation_end, n),
+    }
+    # A failed gate means the safe model output is cash, not a forced trade.
+    holdout = stats["Holdout"]
+    passed = (
+        holdout["return"] > 0.0
+        and holdout["max_dd"] > -0.10
+        and holdout["actions"] <= 12
+        and winner["total_actions"] <= 120
+    )
+    return results, winner["params"], stats, net, weights, passed
+
+
+def current_snapshot(prices, params):
+    score, ema_fast, ema_slow, trend, eligible, returns = components(prices, params)
+    weights = target_weights(prices, params)
+    latest = prices.index[-1]
+    data = {
+        "Price": prices.loc[latest],
+        "1h": returns["1h"].loc[latest],
+        "1d": returns["1d"].loc[latest],
+        "5d": returns["5d"].loc[latest],
+        "Score": score.loc[latest],
+        "EMA fast": ema_fast.loc[latest],
+        "EMA slow": ema_slow.loc[latest],
+        "Trend OK": trend.loc[latest],
+        "Entry eligible": eligible.loc[latest],
+        "Model weight": weights.loc[latest],
+    }
+    return latest, pd.DataFrame(data).sort_values("Score", ascending=False)
+
+
 with st.sidebar:
-    st.header("V3 settings")
-    initial = st.number_input(
-        "Paper capital (£)", min_value=100.0, value=1000.0, step=100.0
-    )
-    top_n = st.selectbox("Maximum holdings", [1, 2], index=0)
+    st.header("V4 settings")
+    initial = st.number_input("Paper capital (£)", min_value=100.0, value=1000.0, step=100.0)
     cost_bps = st.number_input(
-        "Estimated one-way spread + slippage (bps)",
-        min_value=0.0,
-        value=8.0,
-        step=1.0,
-        help=(
-            "Applied on every unit of portfolio turnover. This is deliberately "
-            "non-zero even where broker commission is zero."
-        ),
+        "One-way spread + slippage (bps)", min_value=0.0, value=8.0, step=1.0,
+        help="Charged on every unit of portfolio turnover; zero commission is not zero cost.",
     )
-    ticker_text = st.text_input(
-        "GBP-listed ETF universe", value=", ".join(DEFAULT_TICKERS)
-    )
+    ticker_text = st.text_input("GBP-listed ETF universe", value=", ".join(DEFAULT_TICKERS))
     tickers = [item.strip().upper() for item in ticker_text.split(",") if item.strip()]
 
 
-st.subheader("V3 hypothesis")
+st.subheader("V4 feedback loop")
 st.write(
-    "Every **15 minutes**, rank the ETF universe using **15-minute, 60-minute "
-    "and one-session momentum**. A holding is allowed only when price > EMA20 "
-    "> EMA60 and both the 15-minute and 60-minute returns are positive. "
-    "Otherwise the model sits in cash."
+    "V4 tests 32 deliberately low-turnover variants. The first 60% of observations "
+    "forms a shortlist, the next 20% selects the most stable candidate, and the final "
+    "20% is revealed only after selection. A safety gate forces **cash** if the selected "
+    "strategy fails its untouched holdout period."
 )
-st.write(
-    "The default is **one ETF at a time**. This is intentionally a high-turnover "
-    "experiment, not a claim that intraday momentum will outperform."
+st.caption(
+    "It evaluates every 30–60 minutes, but uses 1-hour, 1-day and 5-day momentum, "
+    "minimum holds and switch hysteresis to suppress noise and excessive trading."
 )
 
-col1, col2, col3 = st.columns(3)
-backtest_btn = col1.button("Run 60-day Intraday Test", use_container_width=True)
-signal_btn = col2.button("Current V3 Signal", use_container_width=True)
-paper_btn = col3.button("Record Paper Decision", use_container_width=True)
+left, middle, right = st.columns(3)
+optimise_btn = left.button("Run robust optimisation", use_container_width=True)
+signal_btn = middle.button("Current V4 signal", use_container_width=True)
+paper_btn = right.button("Record paper decision", use_container_width=True)
 
 prices = None
-if backtest_btn or signal_btn or paper_btn:
+if optimise_btn or signal_btn or paper_btn:
     try:
-        with st.spinner("Loading five-minute market data…"):
+        with st.spinner("Loading and checking five-minute market data…"):
             prices = cached_prices(tuple(tickers))
     except Exception as error:
         st.error(f"Market data could not be loaded: {error}")
 else:
-    st.info("Choose an action above. Market data loads only when needed.")
+    st.info("Start with ‘Run robust optimisation’. Market data loads only when requested.")
 
 
-if backtest_btn and prices is not None:
-    turnover, costs, equity, daily_summary = run_backtest(
-        prices, initial, top_n, cost_bps
-    )
-    st.subheader("Intraday test results")
-    a, b, c, d = st.columns(4)
-    a.metric("End value", f"£{equity.iloc[-1]:,.2f}")
-    b.metric("Net return", f"{equity.iloc[-1] / initial - 1:.2%}")
-    drawdown = (equity / equity.cummax() - 1).min()
-    c.metric("Max drawdown", f"{drawdown:.2%}")
-    d.metric("Portfolio actions", f"{int((turnover > 0).sum()):,}")
-    st.line_chart(equity.rename("V3 paper equity"))
-    st.caption(
-        f"Cumulative modelled trading-cost drag: {costs.sum():.2%}; "
-        f"total turnover: {turnover.sum():.1f}x."
-    )
-    st.subheader("Daily evaluation")
-    display = daily_summary.copy()
-    display.index = pd.Index([str(value) for value in display.index], name="Date")
-    display["return_frac"] = display["return_frac"].map(lambda value: f"{value:.2%}")
-    display["turnover"] = display["turnover"].map(lambda value: f"{value:.2f}x")
-    st.dataframe(
-        display.rename(
-            columns={
-                "return_frac": "Net return",
-                "turnover": "Turnover",
-                "actions": "Actions",
-            }
-        ),
-        use_container_width=True,
+if optimise_btn and prices is not None:
+    with st.spinner("Running the train → validation → holdout feedback loop…"):
+        results, params, stats, net, weights, passed = optimise(prices, cost_bps)
+    st.session_state.v4_params = params
+    st.session_state.v4_passed = passed
+    st.session_state.v4_stats = stats
+
+    if passed:
+        st.success("Preliminary safety gate: PASSED. Continue paper testing; this is not live-trading approval.")
+    else:
+        st.warning("Safety gate: FAILED. V4 will recommend CASH until a robust edge is demonstrated.")
+
+    st.subheader("Selected model: honest split results")
+    metric_columns = st.columns(3)
+    for column, split in zip(metric_columns, ["Train", "Validation", "Holdout"]):
+        item = stats[split]
+        with column:
+            st.metric(f"{split} return", f"{item['return']:.2%}")
+            st.caption(
+                f"Max drawdown {item['max_dd']:.2%} · "
+                f"actions {item['actions']} · Sharpe {item['sharpe']:.2f}"
+            )
+
+    st.subheader("Selected controls")
+    st.json(params)
+    equity = initial * (1.0 + net).cumprod()
+    st.line_chart(equity.rename("V4 modelled equity"))
+
+    st.subheader("Sensitivity across all 32 candidates")
+    show = results.drop(columns=["params"]).sort_values("validation_score", ascending=False).copy()
+    for column in ["train_return", "validation_return", "test_return", "test_max_dd"]:
+        show[column] = show[column].map(lambda value: f"{value:.2%}")
+    st.dataframe(show.head(12), use_container_width=True, hide_index=True)
+
+
+def active_configuration():
+    return (
+        st.session_state.get("v4_params", DEFAULT_PARAMS),
+        bool(st.session_state.get("v4_passed", False)),
     )
 
 
 if signal_btn and prices is not None:
-    timestamp, table = signal_snapshot(prices, top_n=top_n)
-    selected = table[table["Target weight"] > 0]["Target weight"]
-    st.subheader(f"Current signal — {timestamp}")
-    if selected.empty:
-        st.success("V3 signal: CASH 100%")
+    params, passed = active_configuration()
+    timestamp, table = current_snapshot(prices, params)
+    selected = table[table["Model weight"] > 0.0]["Model weight"]
+    st.subheader(f"Current V4 signal — {timestamp}")
+    if not passed:
+        st.warning("V4 safety gate has not passed: CASH 100%")
+    elif selected.empty:
+        st.success("V4 signal: CASH 100%")
     else:
         st.success(
-            "V3 signal: "
+            "V4 paper signal: "
             + ", ".join(f"{ticker} {weight:.0%}" for ticker, weight in selected.items())
         )
     display = table.copy()
-    for column in ["15m", "60m", "1d", "Score", "Target weight"]:
+    for column in ["1h", "1d", "5d", "Score", "Model weight"]:
         display[column] = display[column].map(
             lambda value: f"{value:.2%}" if pd.notna(value) else ""
         )
     st.dataframe(display, use_container_width=True)
 
 
-if "paper_log_v3" not in st.session_state:
-    st.session_state.paper_log_v3 = []
+if "paper_log_v4" not in st.session_state:
+    st.session_state.paper_log_v4 = []
 
 if paper_btn and prices is not None:
-    timestamp, table = signal_snapshot(prices, top_n=top_n)
-    selected = table[table["Target weight"] > 0]["Target weight"]
-    allocation = (
-        "CASH 100%"
-        if selected.empty
-        else ", ".join(
+    params, passed = active_configuration()
+    timestamp, table = current_snapshot(prices, params)
+    selected = table[table["Model weight"] > 0.0]["Model weight"]
+    allocation = "CASH 100%"
+    if passed and not selected.empty:
+        allocation = ", ".join(
             f"{ticker} {weight:.0%}" for ticker, weight in selected.items()
         )
-    )
-    st.session_state.paper_log_v3.append(
-        {"time": str(timestamp), "capital": float(initial), "allocation": allocation}
-    )
-    st.success(f"Recorded: {allocation}")
+    record = {"time": str(timestamp), "capital": float(initial), "allocation": allocation}
+    duplicate = any(row["time"] == record["time"] for row in st.session_state.paper_log_v4)
+    if duplicate:
+        st.info("That market timestamp is already recorded; no duplicate was added.")
+    else:
+        st.session_state.paper_log_v4.append(record)
+        st.success(f"Recorded: {allocation}")
 
-if st.session_state.paper_log_v3:
+if st.session_state.paper_log_v4:
     st.subheader("Paper decision log")
-    st.dataframe(pd.DataFrame(st.session_state.paper_log_v3), use_container_width=True)
+    log = pd.DataFrame(st.session_state.paper_log_v4)
+    st.dataframe(log, use_container_width=True, hide_index=True)
+    st.download_button(
+        "Download paper log (CSV)",
+        log.to_csv(index=False).encode("utf-8"),
+        file_name="momentum_v4_paper_log.csv",
+        mime="text/csv",
+    )
 
 st.divider()
 st.caption(
-    "Important: yfinance intraday data is suitable for experimentation, not "
-    "execution-grade trading. This app deliberately has no Trading 212 "
-    "connection. Validate the hypothesis forward in paper mode before "
-    "considering real capital."
+    "Research limitation: 60 days of yfinance five-minute data is a small, non-execution-grade "
+    "sample. A positive holdout is only permission to continue forward paper testing, never proof "
+    "of future profit. V4 deliberately cannot place a real order."
 )
