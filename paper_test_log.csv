@@ -1,0 +1,2 @@
+decision_time_london,recorded_date,paper_capital_gbp,signal_asset,target_weight,cash_weight,target_notional_gbp,cash_notional_gbp,cost_bps,safety_gate,status,notes
+2026-09-07 16:00:00+01:00,2026-09-07,1000.00,IITU.L,0.72,0.28,720.00,280.00,8,PASSED,OPEN,"First forward paper decision; no real trade"
