@@ -5,19 +5,19 @@ import pandas as pd
 import streamlit as st
 
 
-APP_TITLE = "Momentum Trader — V5 Robust Ensemble Lab"
+APP_TITLE = "Momentum Trader — V6 Multi-Regime Lab"
 DEFAULT_TICKERS = [
     "VWRP.L", "SWDA.L", "CSP1.L", "EQQQ.L", "IITU.L", "EMIM.L", "IGLN.L"
 ]
 DEFAULT_PARAMS = {
-    "eval_bars": 24,
-    "ema_fast": 156,
-    "ema_slow": 780,
-    "mom_fast": 36,
-    "mom_mid": 156,
-    "mom_long": 780,
-    "min_hold_bars": 390,
-    "switch_buffer": 0.008,
+    "eval_bars": 4,
+    "ema_fast": 35,
+    "ema_slow": 140,
+    "mom_fast": 7,
+    "mom_mid": 35,
+    "mom_long": 140,
+    "min_hold_bars": 35,
+    "switch_buffer": 0.01,
     "entry_floor": 0.001,
 }
 
@@ -30,7 +30,7 @@ st.caption(
 )
 
 
-def download_intraday(tickers, period="60d", interval="5m"):
+def download_intraday(tickers, period="2y", interval="1h"):
     import yfinance as yf
 
     if not tickers:
@@ -83,9 +83,9 @@ def components(prices, params):
         & (score > 0.0)
     )
     return score, ema_fast, ema_slow, trend, eligible, {
-        "1h": r_fast,
-        "1d": r_mid,
-        "5d": r_long,
+        "1d": r_fast,
+        "1w": r_mid,
+        "1m": r_long,
     }
 
 
@@ -194,19 +194,19 @@ def objective(stats):
 def candidate_grid():
     candidates = []
     for eval_bars, ema_pair, mom_fast, min_hold, switch_buffer in product(
-        [12, 24, 78],
-        [(78, 390), (156, 780)],
-        [36, 78],
-        [156, 390],
-        [0.004, 0.008],
+        [1, 4, 7],
+        [(35, 140), (70, 280)],
+        [7, 21],
+        [14, 35],
+        [0.005, 0.01],
     ):
         candidates.append({
             "eval_bars": eval_bars,
             "ema_fast": ema_pair[0],
             "ema_slow": ema_pair[1],
             "mom_fast": mom_fast,
-            "mom_mid": 156,
-            "mom_long": 780,
+            "mom_mid": 35,
+            "mom_long": ema_pair[1],
             "min_hold_bars": min_hold,
             "switch_buffer": switch_buffer,
             "entry_floor": 0.001,
@@ -273,6 +273,17 @@ def optimise(prices, cost_bps):
         "Validation": segment_stats(net, turnover, train_end, validation_end),
         "Holdout": segment_stats(net, turnover, validation_end, n),
     }
+    benchmark_ticker = "VWRP.L" if "VWRP.L" in prices.columns else prices.columns[0]
+    benchmark_net = prices[benchmark_ticker].pct_change(fill_method=None).fillna(0.0)
+    no_turnover = pd.Series(0.0, index=prices.index)
+    benchmark = {
+        "ticker": benchmark_ticker,
+        "Train": segment_stats(benchmark_net, no_turnover, 0, train_end),
+        "Validation": segment_stats(
+            benchmark_net, no_turnover, train_end, validation_end
+        ),
+        "Holdout": segment_stats(benchmark_net, no_turnover, validation_end, n),
+    }
     # A failed gate means the safe model output is cash, not a forced trade.
     holdout = stats["Holdout"]
     passed = (
@@ -282,10 +293,10 @@ def optimise(prices, cost_bps):
         and holdout["return"] > 0.0
         and winner["stressed_test_return"] > 0.0
         and holdout["max_dd"] > -0.08
-        and holdout["actions"] <= 8
-        and winner["total_actions"] <= 80
+        and holdout["actions"] <= 40
+        and winner["total_actions"] <= 150
     )
-    return results, winner["params"], stats, net, weights, passed
+    return results, winner["params"], stats, benchmark, net, weights, passed
 
 
 def current_snapshot(prices, params):
@@ -294,9 +305,9 @@ def current_snapshot(prices, params):
     latest = prices.index[-1]
     data = {
         "Price": prices.loc[latest],
-        "1h": returns["1h"].loc[latest],
         "1d": returns["1d"].loc[latest],
-        "5d": returns["5d"].loc[latest],
+        "1w": returns["1w"].loc[latest],
+        "1m": returns["1m"].loc[latest],
         "Score": score.loc[latest],
         "EMA fast": ema_fast.loc[latest],
         "EMA slow": ema_slow.loc[latest],
@@ -308,7 +319,7 @@ def current_snapshot(prices, params):
 
 
 with st.sidebar:
-    st.header("V5 settings")
+    st.header("V6 settings")
     initial = st.number_input("Paper capital (£)", min_value=100.0, value=1000.0, step=100.0)
     cost_bps = st.number_input(
         "One-way spread + slippage (bps)", min_value=0.0, value=8.0, step=1.0,
@@ -318,21 +329,21 @@ with st.sidebar:
     tickers = [item.strip().upper() for item in ticker_text.split(",") if item.strip()]
 
 
-st.subheader("V5 feedback loop")
+st.subheader("V6 feedback loop")
 st.write(
-    "V5 tests 48 slower variants. It selects on the **weaker** of training and "
-    "validation performance, then reveals the final 20% only after selection. The "
-    "strategy must also survive 1.5× trading costs. A safety gate forces **cash** "
-    "unless every stage is positive."
+    "V6 tests 48 variants across roughly **two years of hourly data**. It selects on "
+    "the weaker of training and validation performance, then reveals the final 20% "
+    "only after selection. Every candidate is also stressed at 1.5× trading costs."
 )
 st.caption(
-    "It evaluates every 1–6.5 hours, uses multi-day momentum, minimum 2–5 day holds "
-    "and wider switch hysteresis to suppress noise and excessive trading."
+    "This remains intraday: it can evaluate every 1–7 market hours, while using "
+    "multi-day trends, 2–5 day minimum holds and switch hysteresis. VWRP is shown "
+    "as a passive benchmark; a safety failure forces cash."
 )
 
 left, middle, right = st.columns(3)
-optimise_btn = left.button("Run V5 robustness loop", use_container_width=True)
-signal_btn = middle.button("Current V5 signal", use_container_width=True)
+optimise_btn = left.button("Run V6 multi-regime loop", use_container_width=True)
+signal_btn = middle.button("Current V6 signal", use_container_width=True)
 paper_btn = right.button("Record paper decision", use_container_width=True)
 
 prices = None
@@ -343,20 +354,20 @@ if optimise_btn or signal_btn or paper_btn:
     except Exception as error:
         st.error(f"Market data could not be loaded: {error}")
 else:
-    st.info("Start with ‘Run V5 robustness loop’. Market data loads only when requested.")
+    st.info("Start with ‘Run V6 multi-regime loop’. Market data loads only when requested.")
 
 
 if optimise_btn and prices is not None:
     with st.spinner("Running the train → validation → holdout feedback loop…"):
-        results, params, stats, net, weights, passed = optimise(prices, cost_bps)
-    st.session_state.v5_params = params
-    st.session_state.v5_passed = passed
-    st.session_state.v5_stats = stats
+        results, params, stats, benchmark, net, weights, passed = optimise(prices, cost_bps)
+    st.session_state.v6_params = params
+    st.session_state.v6_passed = passed
+    st.session_state.v6_stats = stats
 
     if passed:
-        st.success("V5 safety gate: PASSED. Continue paper testing; this is not live-trading approval.")
+        st.success("V6 safety gate: PASSED. Continue paper testing; this is not live-trading approval.")
     else:
-        st.warning("Safety gate: FAILED. V5 will recommend CASH until a robust edge is demonstrated.")
+        st.warning("Safety gate: FAILED. V6 will recommend CASH until a robust edge is demonstrated.")
 
     st.subheader("Selected model: honest split results")
     metric_columns = st.columns(3)
@@ -368,11 +379,17 @@ if optimise_btn and prices is not None:
                 f"Max drawdown {item['max_dd']:.2%} · "
                 f"actions {item['actions']} · Sharpe {item['sharpe']:.2f}"
             )
+    st.caption(
+        f"Passive {benchmark['ticker']} comparison — train "
+        f"{benchmark['Train']['return']:.2%}, validation "
+        f"{benchmark['Validation']['return']:.2%}, holdout "
+        f"{benchmark['Holdout']['return']:.2%}."
+    )
 
     st.subheader("Selected controls")
     st.json(params)
     equity = initial * (1.0 + net).cumprod()
-    st.line_chart(equity.rename("V5 modelled equity"))
+    st.line_chart(equity.rename("V6 modelled equity"))
 
     st.subheader("Sensitivity across all 48 candidates")
     show = results.drop(columns=["params"]).sort_values("validation_score", ascending=False).copy()
@@ -383,8 +400,8 @@ if optimise_btn and prices is not None:
 
 def active_configuration():
     return (
-        st.session_state.get("v5_params", DEFAULT_PARAMS),
-        bool(st.session_state.get("v5_passed", False)),
+        st.session_state.get("v6_params", DEFAULT_PARAMS),
+        bool(st.session_state.get("v6_passed", False)),
     )
 
 
@@ -392,26 +409,26 @@ if signal_btn and prices is not None:
     params, passed = active_configuration()
     timestamp, table = current_snapshot(prices, params)
     selected = table[table["Model weight"] > 0.0]["Model weight"]
-    st.subheader(f"Current V5 signal — {timestamp}")
+    st.subheader(f"Current V6 signal — {timestamp}")
     if not passed:
-        st.warning("V5 safety gate has not passed: CASH 100%")
+        st.warning("V6 safety gate has not passed: CASH 100%")
     elif selected.empty:
-        st.success("V5 signal: CASH 100%")
+        st.success("V6 signal: CASH 100%")
     else:
         st.success(
-            "V5 paper signal: "
+            "V6 paper signal: "
             + ", ".join(f"{ticker} {weight:.0%}" for ticker, weight in selected.items())
         )
     display = table.copy()
-    for column in ["1h", "1d", "5d", "Score", "Model weight"]:
+    for column in ["1d", "1w", "1m", "Score", "Model weight"]:
         display[column] = display[column].map(
             lambda value: f"{value:.2%}" if pd.notna(value) else ""
         )
     st.dataframe(display, use_container_width=True)
 
 
-if "paper_log_v5" not in st.session_state:
-    st.session_state.paper_log_v5 = []
+if "paper_log_v6" not in st.session_state:
+    st.session_state.paper_log_v6 = []
 
 if paper_btn and prices is not None:
     params, passed = active_configuration()
@@ -423,27 +440,27 @@ if paper_btn and prices is not None:
             f"{ticker} {weight:.0%}" for ticker, weight in selected.items()
         )
     record = {"time": str(timestamp), "capital": float(initial), "allocation": allocation}
-    duplicate = any(row["time"] == record["time"] for row in st.session_state.paper_log_v5)
+    duplicate = any(row["time"] == record["time"] for row in st.session_state.paper_log_v6)
     if duplicate:
         st.info("That market timestamp is already recorded; no duplicate was added.")
     else:
-        st.session_state.paper_log_v5.append(record)
+        st.session_state.paper_log_v6.append(record)
         st.success(f"Recorded: {allocation}")
 
-if st.session_state.paper_log_v5:
+if st.session_state.paper_log_v6:
     st.subheader("Paper decision log")
-    log = pd.DataFrame(st.session_state.paper_log_v5)
+    log = pd.DataFrame(st.session_state.paper_log_v6)
     st.dataframe(log, use_container_width=True, hide_index=True)
     st.download_button(
         "Download paper log (CSV)",
         log.to_csv(index=False).encode("utf-8"),
-        file_name="momentum_v5_paper_log.csv",
+        file_name="momentum_v6_paper_log.csv",
         mime="text/csv",
     )
 
 st.divider()
 st.caption(
-    "Research limitation: 60 days of yfinance five-minute data is a small, non-execution-grade "
-    "sample. A positive holdout is only permission to continue forward paper testing, never proof "
-    "of future profit. V5 deliberately cannot place a real order."
+    "Research limitation: yfinance hourly data is not execution-grade. A positive holdout is "
+    "only permission to continue forward paper testing, never proof of future profit. V6 "
+    "deliberately cannot place a real order."
 )
