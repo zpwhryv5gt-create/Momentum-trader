@@ -5,17 +5,18 @@ import pandas as pd
 import streamlit as st
 
 
-APP_TITLE = "Momentum Trader — V8 Validated Lab"
+APP_TITLE = "Momentum Trader — V8 Frozen Paper Test"
 DEFAULT_TICKERS = [
     "VWRP.L", "SWDA.L", "CSP1.L", "EQQQ.L", "IITU.L", "EMIM.L", "IGLN.L"
 ]
 DEFAULT_PARAMS = {
+    # Frozen after V8 development. Do not alter during the forward paper test.
     "eval_bars": 4,
-    "ema_fast": 35,
-    "ema_slow": 140,
-    "mom_fast": 7,
+    "ema_fast": 70,
+    "ema_slow": 280,
+    "mom_fast": 21,
     "mom_mid": 35,
-    "mom_long": 140,
+    "mom_long": 280,
     "min_hold_bars": 35,
     "switch_buffer": 0.01,
     "entry_floor": 0.001,
@@ -336,6 +337,47 @@ def optimise(prices, cost_bps):
     return results, winner["params"], stats, benchmark, net, weights, passed
 
 
+def validate_frozen(prices, params, cost_bps):
+    """Evaluate one preregistered configuration; this function never searches parameters."""
+    n = len(prices)
+    train_end = int(n * 0.60)
+    validation_end = int(n * 0.80)
+    net, turnover, weights = backtest(prices, params, cost_bps)
+    stressed_net = net - turnover * (cost_bps * 0.5 / 10000.0)
+    stats = {
+        "Train": segment_stats(net, turnover, 0, train_end),
+        "Validation": segment_stats(net, turnover, train_end, validation_end),
+        "Holdout": segment_stats(net, turnover, validation_end, n),
+    }
+    stressed_holdout = segment_stats(stressed_net, turnover, validation_end, n)
+    benchmark_ticker = "VWRP.L" if "VWRP.L" in prices.columns else prices.columns[0]
+    benchmark_net = prices[benchmark_ticker].pct_change(fill_method=None).fillna(0.0)
+    no_turnover = pd.Series(0.0, index=prices.index)
+    benchmark = {
+        "ticker": benchmark_ticker,
+        "Train": segment_stats(benchmark_net, no_turnover, 0, train_end),
+        "Validation": segment_stats(
+            benchmark_net, no_turnover, train_end, validation_end
+        ),
+        "Holdout": segment_stats(
+            benchmark_net, no_turnover, validation_end, n
+        ),
+    }
+    total_days = sum(stats[split]["days"] for split in stats)
+    total_actions = int((turnover > 1e-12).sum())
+    holdout = stats["Holdout"]
+    passed = (
+        stats["Train"]["return"] > 0.0
+        and stats["Validation"]["return"] > 0.0
+        and holdout["return"] > 0.0
+        and stressed_holdout["return"] > 0.0
+        and holdout["max_dd"] > -0.08
+        and holdout["actions"] / max(holdout["days"], 1) <= 0.5
+        and total_actions / max(total_days, 1) <= 0.5
+    )
+    return stats, benchmark, net, weights, passed
+
+
 def current_snapshot(prices, params):
     score, ema_fast, ema_slow, trend, eligible, returns = components(prices, params)
     weights = target_weights(prices, params)
@@ -366,47 +408,54 @@ with st.sidebar:
     tickers = [item.strip().upper() for item in ticker_text.split(",") if item.strip()]
 
 
-st.subheader("V8 feedback loop")
+st.subheader("Frozen V8 validation")
 st.write(
-    "V8 tests 48 variants across roughly **two years of hourly data**. It selects on "
-    "the weaker of training and validation performance, then reveals the final 20% "
-    "only after selection. Every candidate is also stressed at 1.5× trading costs."
+    "This paper-test build evaluates the single configuration selected during V8 "
+    "development. It does not search, rank or replace parameters. The historical "
+    "split is a safety check, not fresh evidence."
 )
 st.caption(
-    "This remains intraday: it can evaluate every 1–7 market hours, while using "
-    "multi-day trends, 2–5 day minimum holds and switch hysteresis. A fixed 12% "
-    "volatility target scales risky positions down into cash. VWRP is the benchmark."
+    "Two years of hourly data · fixed 8 bps baseline cost · 1.5× cost stress · "
+    "12% volatility target · VWRP comparison."
 )
 
 left, middle, right = st.columns(3)
-optimise_btn = left.button("Run V8 validation loop", use_container_width=True)
-signal_btn = middle.button("Current V8 signal", use_container_width=True)
+validate_btn = left.button("Validate frozen V8", use_container_width=True)
+signal_btn = middle.button("Current frozen signal", use_container_width=True)
 paper_btn = right.button("Record paper decision", use_container_width=True)
 
 prices = None
-if optimise_btn or signal_btn or paper_btn:
+if validate_btn or signal_btn or paper_btn:
     try:
-        with st.spinner("Loading and checking five-minute market data…"):
+        with st.spinner("Loading and checking hourly market data…"):
             prices = cached_prices(tuple(tickers))
     except Exception as error:
         st.error(f"Market data could not be loaded: {error}")
 else:
-    st.info("Start with ‘Run V8 validation loop’. Market data loads only when requested.")
+    st.info("Start with ‘Validate frozen V8’. Market data loads only when requested.")
 
-
-if optimise_btn and prices is not None:
-    with st.spinner("Running the train → validation → holdout feedback loop…"):
-        results, params, stats, benchmark, net, weights, passed = optimise(prices, cost_bps)
+if validate_btn and prices is not None:
+    params = DEFAULT_PARAMS.copy()
+    with st.spinner("Validating the fixed configuration…"):
+        stats, benchmark, net, weights, passed = validate_frozen(
+            prices, params, cost_bps
+        )
     st.session_state.v8_params = params
     st.session_state.v8_passed = passed
     st.session_state.v8_stats = stats
 
     if passed:
-        st.success("V8 safety gate: PASSED. Continue paper testing; this is not live-trading approval.")
+        st.success(
+            "Frozen V8 safety gate: PASSED. Continue paper testing; "
+            "this is not live-trading approval."
+        )
     else:
-        st.warning("Safety gate: FAILED. V8 will recommend CASH until a robust edge is demonstrated.")
+        st.warning(
+            "Frozen V8 safety gate: FAILED. V8 will recommend CASH "
+            "until the fixed model passes."
+        )
 
-    st.subheader("Selected model: honest split results")
+    st.subheader("Fixed model: historical split results")
     metric_columns = st.columns(3)
     for column, split in zip(metric_columns, ["Train", "Validation", "Holdout"]):
         item = stats[split]
@@ -422,17 +471,10 @@ if optimise_btn and prices is not None:
         f"{benchmark['Validation']['return']:.2%}, holdout "
         f"{benchmark['Holdout']['return']:.2%}."
     )
-
-    st.subheader("Selected controls")
+    st.subheader("Frozen controls")
     st.json(params)
     equity = initial * (1.0 + net).cumprod()
     st.line_chart(equity.rename("V8 modelled equity"))
-
-    st.subheader("Sensitivity across all 48 candidates")
-    show = results.drop(columns=["params"]).sort_values("validation_score", ascending=False).copy()
-    for column in ["train_return", "validation_return", "test_return", "test_max_dd"]:
-        show[column] = show[column].map(lambda value: f"{value:.2%}")
-    st.dataframe(show.head(12), use_container_width=True, hide_index=True)
 
 
 def active_configuration():
@@ -497,7 +539,7 @@ if st.session_state.paper_log_v8:
 
 st.divider()
 st.caption(
-    "Research limitation: yfinance hourly data is not execution-grade. A positive holdout is "
+    "Research limitation: yfinance hourly data is not execution-grade. The fixed historical split has already informed development. A positive holdout is "
     "only permission to continue forward paper testing, never proof of future profit. V8 "
     "deliberately cannot place a real order."
 )
