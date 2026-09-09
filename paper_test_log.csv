@@ -2,3 +2,4 @@ decision_time_london,recorded_date,paper_capital_gbp,signal_asset,target_weight,
 2026-09-07 16:00:00+01:00,2026-09-07,1000.00,IITU.L,0.72,0.28,720.00,280.00,8,PASSED,OPEN,"First forward paper decision; no real trade"
 2026-09-08 16:00:00+01:00,2026-09-08,1000.00,IITU.L,0.72,0.28,720.00,280.00,8,PASSED,TARGET_ONLY,"Frozen V8 decision; unchanged allocation; no real trade or verified fill"
 2026-09-09 12:00:00+01:00,2026-09-09,1000.00,IITU.L,0.72,0.28,720.00,280.00,8,PASSED,TARGET_ONLY,"Frozen V8 decision; unchanged allocation; no real trade or verified fill"
+2026-09-09 15:00:00+01:00,2026-09-09,1000.00,IITU.L,0.72,0.28,720.00,280.00,8,PASSED,TARGET_ONLY,"Frozen V8 decision; unchanged allocation; no real trade or verified fill"
