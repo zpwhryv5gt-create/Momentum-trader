@@ -1,0 +1,61 @@
+{
+  "schema": 1,
+  "started_at": "2026-09-09 16:57:19.179505+00:00",
+  "initial_capital": 1000.0,
+  "strategy": {
+    "cash": 1000.0,
+    "holdings": {},
+    "costs": 0.0
+  },
+  "benchmark": {
+    "cash": 1000.0,
+    "holdings": {},
+    "costs": 0.0
+  },
+  "pending": {
+    "recorded_at": "2026-09-09 16:57:19.179505+00:00",
+    "signal_bar": "2026-09-09 15:00:00+00:00",
+    "target": {
+      "EMIM.L": 0.7493055678597262
+    }
+  },
+  "benchmark_pending": {
+    "recorded_at": "2026-09-09 16:57:19.179505+00:00"
+  },
+  "last_target": {
+    "EMIM.L": 0.7493055678597262
+  },
+  "last_bar": "2026-09-09 15:00:00+00:00",
+  "quote_scales": {
+    "VWRP.L": {
+      "currency": "GBP",
+      "scale": 1.0
+    },
+    "SWDA.L": {
+      "currency": "GBp",
+      "scale": 0.01
+    },
+    "CSP1.L": {
+      "currency": "GBp",
+      "scale": 0.01
+    },
+    "EQQQ.L": {
+      "currency": "GBp",
+      "scale": 0.01
+    },
+    "IITU.L": {
+      "currency": "GBp",
+      "scale": 0.01
+    },
+    "EMIM.L": {
+      "currency": "GBp",
+      "scale": 0.01
+    },
+    "IGLN.L": {
+      "currency": "USD",
+      "scale": 1.0
+    }
+  },
+  "checked_at": "2026-09-09 16:57:19.179505+00:00",
+  "gate_passed": true
+}
