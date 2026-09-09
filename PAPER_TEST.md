@@ -14,8 +14,8 @@ It runs on GitHub Actions, so no phone, iPad, or open Streamlit session is requi
 - A decision is recorded before a simulated fill at the first subsequently observed hourly open.
   On an outage, only previously recorded orders can fill; intervening strategy decisions are never invented.
 - No continuous rebalancing when the target is unchanged. Fractional units are allowed.
-- Both V8 and passive VWRP pay 8 bps one-way costs. Cash earns zero. No borrowing.
-- Quote currency must be GBP or GBp/GBX, explicitly normalized to pounds.
+- Both V8 and passive VWRP pay 8 bps one-way spread/slippage costs; USD trades additionally pay 15 bps FX. Cash earns zero. No borrowing.
+- GBP and GBp/GBX quotes are explicitly normalized to pounds. IGLN.L is USD-quoted: execution and valuation use aligned GBPUSD=X open/close rates. V8 signals retain original quote-currency returns, including gold in USD, to avoid changing the frozen strategy.
 - No forward-filled execution prices. Missing/stale data fails closed and preserves the prior ledger.
 - Corporate actions after start, currency changes, or material historical revisions halt for reconciliation.
   This is a known limitation, particularly for distributing ETFs; alerts must not call the old valuation current.
@@ -48,3 +48,6 @@ Frozen research calculations still have the limitations described in the origina
 does not establish a profitable edge.
 
 GitHub schedule documentation: https://docs.github.com/actions/using-workflows/events-that-trigger-workflows#schedule
+
+FX fee source: https://helpcentre.trading212.com/hc/en-us/articles/360018909758-What-is-the-FX-fee-Invest-Stocks-ISA
+IGLN listing currency: https://www.ishares.com/uk/individual/en/products/258441

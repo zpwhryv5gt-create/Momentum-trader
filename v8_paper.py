@@ -42,8 +42,9 @@ def get_market(now, started=None):
                                prepost=False, raise_errors=True)
         if frame.empty or frame.index.tz is None:
             raise ValueError(f"Missing timestamped data: {symbol}")
-        scale = currency_scale(ticker.history_metadata.get("currency"))
-        units[symbol] = scale
+        currency = ticker.history_metadata.get("currency")
+        scale = 1.0 if currency == "USD" else currency_scale(currency)
+        units[symbol] = {"currency": currency, "scale": scale}
         frame.index = frame.index.tz_convert("UTC")
         # Conservative: a bar is final only after a full hour plus five minutes.
         frame = frame.loc[frame.index + pd.Timedelta(minutes=65) <= now]
@@ -66,13 +67,30 @@ def get_market(now, started=None):
         raise ValueError("Incomplete or invalid price set")
     if not np.isfinite(o.to_numpy()).all() or (o <= 0).any().any():
         raise ValueError("Invalid execution prices")
+    signal_closes = c.copy()
+    usd_symbols = [k for k, u in units.items() if u["currency"] == "USD"]
+    if usd_symbols:
+        fx = yf.Ticker("GBPUSD=X").history(
+            period="2y" if started is None else "1mo", interval="1h",
+            auto_adjust=False, prepost=False, raise_errors=True)
+        if fx.empty or fx.index.tz is None:
+            raise ValueError("Missing GBP/USD conversion data")
+        fx.index = fx.index.tz_convert("UTC")
+        fx = fx.loc[fx.index + pd.Timedelta(minutes=65) <= now]
+        common = c.index.intersection(fx.dropna(subset=["Open", "Close"]).index)
+        o, c, fx = o.loc[common].copy(), c.loc[common].copy(), fx.loc[common]
+        if c.empty or (fx[["Open", "Close"]] <= 0).any().any():
+            raise ValueError("No aligned GBP/USD prices")
+        for k in usd_symbols:
+            o[k] = o[k] / fx["Open"]
+            c[k] = c[k] / fx["Close"]
     latest = c.index[-1].tz_convert("Europe/London")
     local_now = now.tz_convert("Europe/London")
     if latest.date() != local_now.date():
         raise ValueError("No completed bars for today's London session; holiday or stale feed")
     if local_now.hour < 17 and now - c.index[-1] > pd.Timedelta(hours=3):
         raise ValueError("Intraday feed is stale")
-    return o, c, units
+    return o, c, units, signal_closes.loc[:c.index[-1]]
 
 def desired_allocation(prices):
     # Original target_weights lags by one row. Appending a dummy row exposes
@@ -89,7 +107,8 @@ def same_target(a, b):
 def value(account, prices):
     return account["cash"] + sum(q * float(prices[k]) for k, q in account["holdings"].items())
 
-def rebalance(account, target, prices, market_time, recorded_at, book):
+def rebalance(account, target, prices, market_time, recorded_at, book, fx_symbols=()):
+    rates = {k: COST + (0.0015 if k in fx_symbols else 0.0) for k in prices.index}
     equity = value(account, prices)
     old = account["holdings"].copy()
     # Scale requested buys to available cash including costs; never borrow.
@@ -100,18 +119,18 @@ def rebalance(account, target, prices, market_time, recorded_at, book):
         if delta < -1e-10:
             qty = -delta
             notional = qty * float(prices[k])
-            fee = notional * COST
+            fee = notional * rates[k]
             account["cash"] += notional - fee
             account["holdings"][k] = account["holdings"].get(k, 0.0) - qty
             trades.append((k, -qty, notional, fee))
     buys = {k: max(0.0, wanted[k] - account["holdings"].get(k, 0.0)) for k in wanted}
-    total = sum(q * float(prices[k]) * (1 + COST) for k, q in buys.items())
+    total = sum(q * float(prices[k]) * (1 + rates[k]) for k, q in buys.items())
     scale = min(1.0, account["cash"] / total) if total else 1.0
     for k, q in buys.items():
         q *= scale
         if q > 1e-10:
             notional = q * float(prices[k])
-            fee = notional * COST
+            fee = notional * rates[k]
             account["cash"] -= notional + fee
             account["holdings"][k] = account["holdings"].get(k, 0.0) + q
             trades.append((k, q, notional, fee))
@@ -122,7 +141,7 @@ def rebalance(account, target, prices, market_time, recorded_at, book):
     account["costs"] += sum(t[3] for t in trades)
     return [dict(book=book, market_time=str(market_time), recorded_at=str(recorded_at),
                  ticker=k, quantity=q, reference_price_gbp=float(prices[k]),
-                 notional_gbp=n, cost_gbp=f, status="SIMULATED_FILL")
+                 notional_gbp=n, cost_gbp=f, fx_cost_gbp=n*(0.0015 if k in fx_symbols else 0.0), status="SIMULATED_FILL")
             for k, q, n, f in trades]
 
 def eligible_open(opens, pending):
@@ -138,26 +157,26 @@ def run(now=None):
         return
     state_path = ROOT / "state.json"
     state = json.loads(state_path.read_text()) if state_path.exists() else None
-    opens, closes, units = get_market(now, state["started_at"] if state else None)
+    opens, closes, units, signal_closes = get_market(now, state["started_at"] if state else None)
     latest = closes.index[-1]
     if state and state["quote_scales"] != units:
         raise ValueError("Quote currency changed; manual reconciliation required")
     if state:
         archive = pd.read_csv(ROOT / "signal_prices.csv", index_col=0, parse_dates=True)
         archive.index = pd.to_datetime(archive.index, utc=True)
-        overlap = archive.index.intersection(closes.index)
+        overlap = archive.index.intersection(signal_closes.index)
         if len(overlap):
-            difference = (closes.loc[overlap] / archive.loc[overlap] - 1).abs()
+            difference = (signal_closes.loc[overlap] / archive.loc[overlap] - 1).abs()
             if difference.max().max() > 0.02:
                 raise ValueError("Historical price revision >2%; preserve ledger pending review")
-        fresh = closes.loc[closes.index > archive.index[-1]]
+        fresh = signal_closes.loc[signal_closes.index > archive.index[-1]]
         prices = pd.concat([archive, fresh])
         if latest <= utc(state["last_bar"]):
             dump(ROOT / "health.json", {"status": "NO_NEW_BAR", "checked_at": str(now),
                                         "last_bar": state["last_bar"]})
             return
     else:
-        prices = closes
+        prices = signal_closes
         if len(prices) < 1000:
             raise ValueError("Insufficient V8 warmup/validation history")
         state = dict(schema=1, started_at=str(now), initial_capital=CAPITAL,
@@ -176,7 +195,8 @@ def run(now=None):
                     raise ValueError("Pending order too old; review before resuming")
                 target = pending["target"] if book == "strategy" else {"VWRP.L": 1.0}
                 fills.extend(rebalance(state[book], target, opens.loc[execution],
-                                       execution, now, book))
+                                       execution, now, book,
+                                       [k for k, u in units.items() if isinstance(u, dict) and u['currency'] == 'USD']))
                 state[key] = None
     target, passed = desired_allocation(prices)
     decisions = []
@@ -231,7 +251,7 @@ def run(now=None):
         f"Holdings (units): {json.dumps(state['strategy']['holdings'])}.\n\n"
         f"Cash: £{state['strategy']['cash']:.2f}. Pending target: {json.dumps(state['pending'])}.\n\n"
         "The legacy target-only log is excluded. Both books start together and pay "
-        "8 bps per side; cash earns zero. Yahoo prices are indicative, not broker quotes.\n"
+        "8 bps per side plus 15 bps FX on USD trades; cash earns zero. Yahoo prices are indicative, not broker quotes.\n"
     )
     (ROOT / "REPORT.md").write_text(report)
     dump(ROOT / "health.json", {"status": "OK", "checked_at": str(now), "last_bar": str(latest),

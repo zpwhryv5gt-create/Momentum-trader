@@ -30,6 +30,14 @@ class LedgerTests(unittest.TestCase):
         self.assertFalse(a["holdings"])
         self.assertAlmostEqual(a["cash"] + a["costs"], 1000)
 
+    def test_usd_fx_fee(self):
+        a = dict(cash=1000.0, holdings={}, costs=0.0)
+        fills = p.rebalance(a, {"GOLD": 1.0}, pd.Series({"GOLD": 50.0}),
+                            "t", "r", "strategy", ["GOLD"])
+        self.assertAlmostEqual(a["holdings"]["GOLD"], 1000 / (50 * 1.0023))
+        self.assertAlmostEqual(fills[0]["fx_cost_gbp"], fills[0]["notional_gbp"] * .0015)
+        self.assertAlmostEqual(p.value(a, pd.Series({"GOLD": 50.0})) + a["costs"], 1000)
+
     def test_never_fill_at_or_before_recording(self):
         ix = pd.date_range("2026-09-09 08:00", periods=4, freq="h", tz="UTC")
         opens = pd.DataFrame({"A": [10, 11, 12, 13]}, index=ix)
@@ -41,7 +49,7 @@ class LedgerTests(unittest.TestCase):
         c = pd.DataFrame(100.0, index=ix, columns=p.DEFAULT_TICKERS)
         scales = {s: 1.0 for s in p.DEFAULT_TICKERS}
         with TemporaryDirectory() as tmp, patch.object(p, "ROOT", Path(tmp)), \
-             patch.object(p, "get_market", return_value=(c, c, scales)), \
+             patch.object(p, "get_market", return_value=(c, c, scales, c)), \
              patch.object(p, "desired_allocation", return_value=({"IITU.L": .72}, True)):
             p.run(pd.Timestamp("2026-09-09 09:15Z"))
             state1 = json.loads((p.ROOT / "state.json").read_text())
@@ -51,7 +59,7 @@ class LedgerTests(unittest.TestCase):
             self.assertEqual(len(pd.read_csv(p.ROOT / "valuations.csv")), 1)
             c2 = pd.concat([c, pd.DataFrame(101.0, index=pd.DatetimeIndex([
                 pd.Timestamp("2026-09-09 10:00Z")]), columns=p.DEFAULT_TICKERS)])
-            with patch.object(p, "get_market", return_value=(c2, c2, scales)):
+            with patch.object(p, "get_market", return_value=(c2, c2, scales, c2)):
                 p.run(pd.Timestamp("2026-09-09 11:15Z"))
                 state2 = json.loads((p.ROOT / "state.json").read_text())
                 self.assertAlmostEqual(state2["strategy"]["holdings"]["IITU.L"], 720 / 101)
@@ -66,12 +74,12 @@ class LedgerTests(unittest.TestCase):
         c = pd.DataFrame(100.0, index=ix, columns=p.DEFAULT_TICKERS)
         scales = {s: 1.0 for s in p.DEFAULT_TICKERS}
         with TemporaryDirectory() as tmp, patch.object(p, "ROOT", Path(tmp)), \
-             patch.object(p, "get_market", return_value=(c, c, scales)), \
+             patch.object(p, "get_market", return_value=(c, c, scales, c)), \
              patch.object(p, "desired_allocation", return_value=({}, False)):
             p.run(pd.Timestamp("2026-09-09 09:15Z"))
             before = (p.ROOT / "state.json").read_text()
             changed = {**scales, "IITU.L": .01}
-            with patch.object(p, "get_market", return_value=(c, c, changed)):
+            with patch.object(p, "get_market", return_value=(c, c, changed, c)):
                 with self.assertRaises(ValueError):
                     p.run(pd.Timestamp("2026-09-09 10:15Z"))
             self.assertEqual(before, (p.ROOT / "state.json").read_text())

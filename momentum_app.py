@@ -408,6 +408,33 @@ with st.sidebar:
     tickers = [item.strip().upper() for item in ticker_text.split(",") if item.strip()]
 
 
+
+st.subheader("Audited forward paper account")
+@st.cache_data(ttl=60, show_spinner=False)
+def load_audited_daily():
+    return pd.read_csv(
+        "https://raw.githubusercontent.com/zpwhryv5gt-create/Momentum-trader/main/paper/daily.csv"
+    )
+try:
+    audited = load_audited_daily()
+    last = audited.iloc[-1]
+    st.caption(f"Last price bar: {last['market_time']}. Current-day figures are provisional.")
+    a, b, c = st.columns(3)
+    a.metric("Paper account", f"£{last['equity_gbp']:,.2f}",
+             f"£{last['day_pnl_gbp']:+.2f} today")
+    b.metric("Since start", f"{last['return_pct']:+.2f}%")
+    c.metric("VWRP since start", f"{last['benchmark_return_pct']:+.2f}%")
+    st.line_chart(audited.set_index("london_date")[["equity_gbp", "benchmark_gbp"]])
+    st.caption("Starts with £1,000 fresh cash; historical target-only entries are excluded.")
+    st.markdown("[Latest report and pending orders](https://github.com/zpwhryv5gt-create/Momentum-trader/blob/main/paper/REPORT.md) · [Runner status](https://github.com/zpwhryv5gt-create/Momentum-trader/actions/workflows/v8-paper.yml)")
+    stamp = pd.Timestamp(last["market_time"])
+    if pd.Timestamp.now(tz="UTC") - stamp > pd.Timedelta(hours=24):
+        st.warning("This valuation is more than 24 hours old. Check runner status and the market calendar.")
+except Exception:
+    st.info("The audited account has not published an available valuation yet.")
+    st.markdown("[Check the scheduled runner](https://github.com/zpwhryv5gt-create/Momentum-trader/actions/workflows/v8-paper.yml)")
+st.divider()
+
 st.subheader("Frozen V8 validation")
 st.write(
     "This paper-test build evaluates the single configuration selected during V8 "
@@ -419,10 +446,10 @@ st.caption(
     "12% volatility target · VWRP comparison."
 )
 
-left, middle, right = st.columns(3)
+left, middle = st.columns(2)
 validate_btn = left.button("Validate frozen V8", use_container_width=True)
 signal_btn = middle.button("Current frozen signal", use_container_width=True)
-paper_btn = right.button("Record paper decision", use_container_width=True)
+paper_btn = False
 
 prices = None
 if validate_btn or signal_btn or paper_btn:
@@ -506,36 +533,6 @@ if signal_btn and prices is not None:
     st.dataframe(display, use_container_width=True)
 
 
-if "paper_log_v8" not in st.session_state:
-    st.session_state.paper_log_v8 = []
-
-if paper_btn and prices is not None:
-    params, passed = active_configuration()
-    timestamp, table = current_snapshot(prices, params)
-    selected = table[table["Model weight"] > 0.0]["Model weight"]
-    allocation = "CASH 100%"
-    if passed and not selected.empty:
-        allocation = ", ".join(
-            f"{ticker} {weight:.0%}" for ticker, weight in selected.items()
-        )
-    record = {"time": str(timestamp), "capital": float(initial), "allocation": allocation}
-    duplicate = any(row["time"] == record["time"] for row in st.session_state.paper_log_v8)
-    if duplicate:
-        st.info("That market timestamp is already recorded; no duplicate was added.")
-    else:
-        st.session_state.paper_log_v8.append(record)
-        st.success(f"Recorded: {allocation}")
-
-if st.session_state.paper_log_v8:
-    st.subheader("Paper decision log")
-    log = pd.DataFrame(st.session_state.paper_log_v8)
-    st.dataframe(log, use_container_width=True, hide_index=True)
-    st.download_button(
-        "Download paper log (CSV)",
-        log.to_csv(index=False).encode("utf-8"),
-        file_name="momentum_v8_paper_log.csv",
-        mime="text/csv",
-    )
 
 st.divider()
 st.caption(
