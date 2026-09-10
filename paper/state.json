@@ -3,11 +3,9 @@
   "started_at": "2026-09-09 16:57:19.179505+00:00",
   "initial_capital": 1000.0,
   "strategy": {
-    "cash": 250.09498768598598,
-    "holdings": {
-      "EMIM.L": 18.09916830579049
-    },
-    "costs": 0.599444454287781
+    "cash": 989.3970728264287,
+    "holdings": {},
+    "costs": 1.1913596545603533
   },
   "benchmark": {
     "cash": 0.0,
@@ -16,14 +14,10 @@
     },
     "costs": 0.7993605115907275
   },
-  "pending": {
-    "recorded_at": "2026-09-10 12:38:08.590597+00:00",
-    "signal_bar": "2026-09-10 11:00:00+00:00",
-    "target": {}
-  },
+  "pending": null,
   "benchmark_pending": null,
   "last_target": {},
-  "last_bar": "2026-09-10 12:00:00+00:00",
+  "last_bar": "2026-09-10 13:00:00+00:00",
   "quote_scales": {
     "VWRP.L": {
       "currency": "GBP",
@@ -54,6 +48,6 @@
       "scale": 1.0
     }
   },
-  "checked_at": "2026-09-10 13:30:04.607037+00:00",
+  "checked_at": "2026-09-10 14:31:25.044150+00:00",
   "gate_passed": true
 }
