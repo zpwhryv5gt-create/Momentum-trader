@@ -16,12 +16,14 @@
     },
     "costs": 0.7993605115907275
   },
-  "pending": null,
-  "benchmark_pending": null,
-  "last_target": {
-    "EMIM.L": 0.7493055678597262
+  "pending": {
+    "recorded_at": "2026-09-10 12:38:08.590597+00:00",
+    "signal_bar": "2026-09-10 11:00:00+00:00",
+    "target": {}
   },
-  "last_bar": "2026-09-10 10:00:00+00:00",
+  "benchmark_pending": null,
+  "last_target": {},
+  "last_bar": "2026-09-10 11:00:00+00:00",
   "quote_scales": {
     "VWRP.L": {
       "currency": "GBP",
@@ -52,6 +54,6 @@
       "scale": 1.0
     }
   },
-  "checked_at": "2026-09-10 11:30:38.038511+00:00",
+  "checked_at": "2026-09-10 12:38:08.590597+00:00",
   "gate_passed": true
 }
