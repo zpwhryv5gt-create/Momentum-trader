@@ -1,16 +1,16 @@
 # V8 forward paper test
 
-Observed at 2026-09-10 08:33:35.270564+00:00; latest completed price bar starts 2026-09-10 07:00:00+00:00.
+Observed at 2026-09-10 09:31:57.315001+00:00; latest completed price bar starts 2026-09-10 08:00:00+00:00.
 
 Started 2026-09-09 16:57:19.179505+00:00 with £1,000. Simulated fills only.
 
 | Measure | Value |
 |---|---:|
-| Portfolio | £997.95 |
-| Today, provisional until session data complete | £-2.05 (-0.20%) |
-| Since start | £-2.05 (-0.20%) |
-| VWRP since start | -0.14% |
-| Difference | -0.07 percentage points |
+| Portfolio | £996.69 |
+| Today, provisional until session data complete | £-3.31 (-0.33%) |
+| Since start | £-3.31 (-0.33%) |
+| VWRP since start | -0.33% |
+| Difference | 0.00 percentage points |
 | Simulated strategy costs | £0.60 |
 
 Holdings (units): {"EMIM.L": 18.09916830579049}.
