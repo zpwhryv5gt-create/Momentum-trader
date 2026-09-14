@@ -33,8 +33,9 @@ def append(path, rows):
         return
     pd.DataFrame(rows).to_csv(path, mode="a", header=not path.exists(), index=False)
 
-def get_market(now, started=None):
+def get_market(now, started=None, held_symbols=()):
     opens, closes, units = {}, {}, {}
+    held_symbols = set(held_symbols)
     for symbol in DEFAULT_TICKERS:
         ticker = yf.Ticker(symbol)
         frame = ticker.history(period="2y" if started is None else "1mo",
@@ -48,11 +49,14 @@ def get_market(now, started=None):
         frame.index = frame.index.tz_convert("UTC")
         # Conservative: a bar is final only after a full hour plus five minutes.
         frame = frame.loc[frame.index + pd.Timedelta(minutes=65) <= now]
-        if started:
+        # Corporate actions only require ledger reconciliation when the account
+        # actually owns the affected security. An action in an unheld universe
+        # constituent must not halt the entire forward paper test.
+        if started and symbol in held_symbols:
             actions = frame.loc[frame.index >= utc(started)]
             for col in ("Dividends", "Stock Splits"):
                 if col in actions and actions[col].fillna(0).ne(0).any():
-                    raise ValueError(f"{symbol}: corporate action requires ledger reconciliation")
+                    raise ValueError(f"{symbol}: held corporate action requires ledger reconciliation")
         if frame.empty:
             raise ValueError(f"No completed bars: {symbol}")
         opens[symbol] = frame["Open"] * scale
@@ -157,7 +161,13 @@ def run(now=None):
         return
     state_path = ROOT / "state.json"
     state = json.loads(state_path.read_text()) if state_path.exists() else None
-    opens, closes, units, signal_closes = get_market(now, state["started_at"] if state else None)
+    held_symbols = set()
+    if state:
+        held_symbols.update(state["strategy"]["holdings"])
+        held_symbols.update(state["benchmark"]["holdings"])
+    opens, closes, units, signal_closes = get_market(
+        now, state["started_at"] if state else None, held_symbols
+    )
     latest = closes.index[-1]
     if state and state["quote_scales"] != units:
         raise ValueError("Quote currency changed; manual reconciliation required")
