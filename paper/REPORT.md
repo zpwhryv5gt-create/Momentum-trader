@@ -1,6 +1,6 @@
 # V8 forward paper test
 
-Observed at 2026-09-16 14:31:40.995217+00:00; latest completed price bar starts 2026-09-16 13:00:00+00:00.
+Observed at 2026-09-16 15:30:59.924722+00:00; latest completed price bar starts 2026-09-16 14:00:00+00:00.
 
 Started 2026-09-09 16:57:19.179505+00:00 with £1,000. Simulated fills only.
 
