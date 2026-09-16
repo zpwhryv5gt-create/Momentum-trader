@@ -14,10 +14,18 @@
     },
     "costs": 0.7993605115907275
   },
-  "pending": null,
+  "pending": {
+    "recorded_at": "2026-09-16 16:30:42.930102+00:00",
+    "signal_bar": "2026-09-16 15:00:00+00:00",
+    "target": {
+      "IITU.L": 0.7094255404121576
+    }
+  },
   "benchmark_pending": null,
-  "last_target": {},
-  "last_bar": "2026-09-16 14:00:00+00:00",
+  "last_target": {
+    "IITU.L": 0.7094255404121576
+  },
+  "last_bar": "2026-09-16 15:00:00+00:00",
   "quote_scales": {
     "VWRP.L": {
       "currency": "GBP",
@@ -48,6 +56,6 @@
       "scale": 1.0
     }
   },
-  "checked_at": "2026-09-16 15:30:59.924722+00:00",
+  "checked_at": "2026-09-16 16:30:42.930102+00:00",
   "gate_passed": true
 }
