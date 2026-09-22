@@ -37,6 +37,14 @@ signals and risk. GBP and GBp/GBX normalize to pounds. Other currencies fail.
 Accumulating fund income is not credited separately. Missing prices are never
 forward-filled. Month-end signal input snapshots are retained with hashes.
 This is a single-provider indicative data test, not independent data verification.
+When a long-range daily response omits a required historical day, retry that
+exact day's daily endpoint. If it remains absent, a historical signal input can
+be reconstructed from all observed hourly bars in the complete XLON session,
+only with no corporate actions and unchanged adjacent adjustment factors.
+This is the final hourly observation, not a verified closing-auction price.
+Such inputs are labelled and retained in paper_v9/data_recoveries/ and health.
+They cannot be used as simulated execution prices. No interpolation or
+previous-price carry-forward is permitted. Partial hourly sessions still fail.
 
 ## Start and scheduling
 

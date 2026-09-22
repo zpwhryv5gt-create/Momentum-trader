@@ -44,6 +44,43 @@ def latest_completed(now):
     return done[-1]
 
 
+def recover_historical_day(ticker, symbol, day, frame):
+    """Use a complete observed hourly session only when adjustment is unchanged.
+
+    This is an indicative historical signal input, never an execution price.
+    Preserve its source explicitly; do not interpolate a daily price.
+    """
+    before, after = frame.loc[frame.index < day], frame.loc[frame.index > day]
+    if before.empty or after.empty:
+        return None
+    left = float(before.iloc[-1]['Adj Close'] / before.iloc[-1]['Close'])
+    right = float(after.iloc[0]['Adj Close'] / after.iloc[0]['Close'])
+    if not np.isfinite([left, right]).all() or abs(left / right - 1) > 1e-6:
+        return None
+    bars = ticker.history(start=str(day.date()), end=str((day + pd.Timedelta(days=1)).date()),
+                          interval='1h', auto_adjust=False, actions=True, prepost=False, raise_errors=True)
+    if bars.empty or bars.index.tz is None or bars.index.has_duplicates:
+        return None
+    bars.index = bars.index.tz_convert('UTC')
+    expected = pd.date_range(CAL.session_open(day), CAL.session_close(day), freq='1h', inclusive='left')
+    if not expected.isin(bars.index).all():
+        return None
+    bars = bars.loc[expected]
+    if not np.isfinite(bars[['Open', 'High', 'Low', 'Close', 'Volume']].to_numpy()).all():
+        return None
+    if (bars[['Open', 'High', 'Low', 'Close']] <= 0).any().any() or bars['Volume'].sum() <= 0:
+        return None
+    if any(c not in bars or bars[c].fillna(0).ne(0).any() for c in ['Dividends', 'Stock Splits']):
+        return None
+    row = {'Open': float(bars['Open'].iloc[0]), 'High': float(bars['High'].max()),
+           'Low': float(bars['Low'].min()), 'Close': float(bars['Close'].iloc[-1]),
+           'Adj Close': float(bars['Close'].iloc[-1]) * right,
+           'Volume': float(bars['Volume'].sum()), 'Dividends': 0., 'Stock Splits': 0.,
+           'V9 Source': 'complete_observed_hourly_session'}
+    print(f'Recovered historical signal day from {len(bars)} observed hourly bars: {symbol} {day.date()}')
+    return pd.DataFrame([row], index=pd.DatetimeIndex([day]))
+
+
 def get_market(now, latest):
     frames, units = {}, {}
     for symbol in SYMBOLS:
@@ -59,6 +96,7 @@ def get_market(now, latest):
         if frame.index.has_duplicates:
             raise ValueError(f'Duplicate daily bars: {symbol}')
         frame = frame.loc[:latest].copy()
+        frame['V9 Source'] = 'Yahoo_daily'
         # Yahoo's long-range response occasionally omits a valid trading day.
         # Retry required missing sessions as narrow daily requests; accept only
         # actual returned bars, never an interpolated or repeated price.
@@ -67,15 +105,23 @@ def get_market(now, latest):
         month_ends = [calendar_date(CAL.sessions_in_range(p.start_time, p.end_time.normalize())[-1]) for p in months]
         required = recent.union(pd.DatetimeIndex([d for d in month_ends if d <= latest]))
         for day in required.difference(frame.index):
-            retry = ticker.history(start=str(day.date()), end=str((day + pd.Timedelta(days=1)).date()),
-                                   interval='1d', auto_adjust=False, actions=True, repair=False, raise_errors=True)
+            try:
+                retry = ticker.history(start=str(day.date()), end=str((day + pd.Timedelta(days=1)).date()),
+                                       interval='1d', auto_adjust=False, actions=True, repair=False, raise_errors=True)
+            except yf.exceptions.YFPricesMissingError:
+                retry = pd.DataFrame()
             if not retry.empty and retry.index.tz is not None:
                 retry.index = retry.index.tz_convert('Europe/London').tz_localize(None).normalize()
                 if day in retry.index:
+                    retry['V9 Source'] = 'Yahoo_daily_narrow_request'
                     frame = pd.concat([frame, retry.loc[[day]]]).sort_index()
                     print(f'Recovered observed daily bar with narrow request: {symbol} {day.date()}')
             if day not in frame.index:
-                print(f'Missing required daily bar: {symbol} {day.date()}')
+                recovered = recover_historical_day(ticker, symbol, day, frame)
+                if recovered is not None:
+                    frame = pd.concat([frame, recovered]).sort_index()
+                else:
+                    print(f'Missing required daily bar: {symbol} {day.date()}')
         if frame.empty or frame.index[-1] != latest:
             raise ValueError(f'Stale feed: {symbol}; expected {latest.date()}')
         for col in ['Open', 'Close', 'Adj Close', 'Dividends']:
@@ -172,6 +218,8 @@ def process(state, frames, tri, units, now, latest, payments):
                 events.extend(corporate_actions(account, frames, session, payments, book, now))
         pending = state['pending']
         if pending and pd.Timestamp(pending['execution_session']) == session:
+            if any('V9 Source' in f and f.loc[session, 'V9 Source'] == 'complete_observed_hourly_session' for f in frames.values()):
+                raise ValueError('Recovered historical signal prices cannot be execution prices')
             if utc(pending['recorded_at']) >= CAL.session_close(session):
                 raise ValueError('Decision was not recorded before execution')
             for book, target in pending['targets'].items():
@@ -260,6 +308,15 @@ def run(now=None, root=None, market_loader=get_market):
     payments = json.loads(Path('v9_dividend_payments.json').read_text())
     state, fills, decisions, events, rows = process(state, frames, tri, units, now, latest, payments)
     root.mkdir(parents=True, exist_ok=True)
+    recovered_days = []
+    for symbol, frame in frames.items():
+        if 'V9 Source' in frame:
+            recovered = frame.loc[frame['V9 Source'] == 'complete_observed_hourly_session']
+            if not recovered.empty:
+                (root / 'data_recoveries').mkdir(exist_ok=True)
+                for day, candle in recovered.iterrows():
+                    candle.to_frame().T.to_csv(root / 'data_recoveries' / f'{day.date()}-{symbol}.csv')
+                    recovered_days.append(f'{symbol}:{day.date()}')
     for decision in decisions:
         month = decision['signal_session'][:7]
         (root / 'snapshots').mkdir(exist_ok=True)
@@ -279,7 +336,7 @@ def run(now=None, root=None, market_loader=get_market):
                 for key in a['receivables'] if key not in payments]
     status = 'OK_DIVIDEND_PAYMENT_PENDING' if warnings else ('OK' if state['first_execution_session'] else 'WAITING_FOR_FIRST_MONTH_END')
     dump(root / 'health.json', {'status': status, 'checked_at': str(now), 'last_session': state['last_session'],
-                               'fills_this_run': len(fills), 'warnings': warnings,
+                               'fills_this_run': len(fills), 'warnings': warnings, 'recovered_historical_signal_days': recovered_days,
                                'config_hash': CONFIG_HASH, 'data_source': 'Yahoo daily; unadjusted execution / adjusted signals'})
     write_report(root, state, now)
     print((root / 'REPORT.md').read_text())

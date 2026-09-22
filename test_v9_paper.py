@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from v9_core import CONFIG, CONFIG_HASH, SYMBOLS, signals, quote_scale, new_account, value, rebalance
-from v9_paper import CAL, process, corporate_actions, run, latest_completed, get_market
+from v9_paper import CAL, process, corporate_actions, run, latest_completed, get_market, recover_historical_day
 
 
 def fixture(end='2026-10-02'):
@@ -41,6 +41,24 @@ class V9Tests(unittest.TestCase):
             frames['SGLN.L'] = frames['SGLN.L'].drop(pd.Timestamp('2026-09-21'))
             with self.assertRaises(ValueError):
                 get_market(pd.Timestamp('2026-09-22T19:00Z'), pd.Timestamp('2026-09-22'))
+
+    def test_hourly_recovery_requires_full_session_and_stable_adjustments(self):
+        day = pd.Timestamp('2026-09-21')
+        frames, _, _ = fixture()
+        f = frames['VWRP.L'].drop(day)
+        idx = pd.date_range(CAL.session_open(day), CAL.session_close(day), freq='1h', inclusive='left')
+        bars = pd.DataFrame({'Open': 100., 'High': 103., 'Low': 99., 'Close': 102.,
+                             'Volume': 100, 'Dividends': 0., 'Stock Splits': 0.}, index=idx)
+        class Ticker:
+            def history(self, **kwargs): return bars.copy()
+        result = recover_historical_day(Ticker(), 'VWRP.L', day, f)
+        self.assertEqual(float(result.loc[day, 'Close']), 102.)
+        self.assertEqual(float(result.loc[day, 'Adj Close']), 102.)
+        self.assertEqual(float(result.loc[day, 'Volume']), 900.)
+        bars = bars.iloc[:-1]
+        self.assertIsNone(recover_historical_day(Ticker(), 'VWRP.L', day, f))
+        f.loc['2026-09-22', 'Adj Close'] *= 0.9
+        self.assertIsNone(recover_historical_day(Ticker(), 'VWRP.L', day, f))
 
     def test_units_and_currency_rejection(self):
         self.assertEqual(quote_scale('GBp') * 10000, 100)
