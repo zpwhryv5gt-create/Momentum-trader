@@ -59,6 +59,23 @@ def get_market(now, latest):
         if frame.index.has_duplicates:
             raise ValueError(f'Duplicate daily bars: {symbol}')
         frame = frame.loc[:latest].copy()
+        # Yahoo's long-range response occasionally omits a valid trading day.
+        # Retry required missing sessions as narrow daily requests; accept only
+        # actual returned bars, never an interpolated or repeated price.
+        recent = CAL.sessions_in_range(latest - pd.Timedelta(days=120), latest)[-64:].tz_localize(None)
+        months = pd.period_range(latest.to_period('M') - 13, latest.to_period('M'), freq='M')
+        month_ends = [calendar_date(CAL.sessions_in_range(p.start_time, p.end_time.normalize())[-1]) for p in months]
+        required = recent.union(pd.DatetimeIndex([d for d in month_ends if d <= latest]))
+        for day in required.difference(frame.index):
+            retry = ticker.history(start=str(day.date()), end=str((day + pd.Timedelta(days=1)).date()),
+                                   interval='1d', auto_adjust=False, actions=True, repair=False, raise_errors=True)
+            if not retry.empty and retry.index.tz is not None:
+                retry.index = retry.index.tz_convert('Europe/London').tz_localize(None).normalize()
+                if day in retry.index:
+                    frame = pd.concat([frame, retry.loc[[day]]]).sort_index()
+                    print(f'Recovered observed daily bar with narrow request: {symbol} {day.date()}')
+            if day not in frame.index:
+                print(f'Missing required daily bar: {symbol} {day.date()}')
         if frame.empty or frame.index[-1] != latest:
             raise ValueError(f'Stale feed: {symbol}; expected {latest.date()}')
         for col in ['Open', 'Close', 'Adj Close', 'Dividends']:

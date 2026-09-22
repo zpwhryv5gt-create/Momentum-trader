@@ -30,6 +30,8 @@ class V9Tests(unittest.TestCase):
                 self.history_metadata = {'currency': 'GBP'}
             def history(self, **kwargs):
                 f = frames[self.symbol].copy()
+                if 'start' in kwargs:
+                    f = f.loc[kwargs['start']:].loc[:pd.Timestamp(kwargs['end']) - pd.Timedelta(days=1)]
                 f.index = f.index.tz_localize('Europe/London')
                 return f
         frames['SGLN.L'] = frames['SGLN.L'].drop(pd.Timestamp('2024-10-02'))
