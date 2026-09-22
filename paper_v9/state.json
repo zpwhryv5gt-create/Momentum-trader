@@ -1,0 +1,93 @@
+{
+  "books": {
+    "cash": {
+      "cash": 1000.0,
+      "costs": 0.0,
+      "holdings": {},
+      "receivables": {}
+    },
+    "passive_mix": {
+      "cash": 1000.0,
+      "costs": 0.0,
+      "holdings": {},
+      "receivables": {}
+    },
+    "passive_scaled": {
+      "cash": 1000.0,
+      "costs": 0.0,
+      "holdings": {},
+      "receivables": {}
+    },
+    "trend_unscaled": {
+      "cash": 1000.0,
+      "costs": 0.0,
+      "holdings": {},
+      "receivables": {}
+    },
+    "v9": {
+      "cash": 1000.0,
+      "costs": 0.0,
+      "holdings": {},
+      "receivables": {}
+    },
+    "vwrp": {
+      "cash": 1000.0,
+      "costs": 0.0,
+      "holdings": {},
+      "receivables": {}
+    },
+    "vwrp_scaled": {
+      "cash": 1000.0,
+      "costs": 0.0,
+      "holdings": {},
+      "receivables": {}
+    }
+  },
+  "checked_at": "2026-09-22 20:07:16.287124+00:00",
+  "config": {
+    "budgets": {
+      "IGLT.L": 0.25,
+      "SGLN.L": 0.25,
+      "VWRP.L": 0.5
+    },
+    "capital_gbp": 1000.0,
+    "cash_interest": 0.0,
+    "cost_per_side": 0.0008,
+    "dividends": "receivable_on_ex_date_cash_only_on_verified_pay_date",
+    "execution": "pre-recorded_next_XLON_session_close",
+    "horizons_months": [
+      1,
+      3,
+      12
+    ],
+    "units": "whole_units_round_down",
+    "version": "v9-paper-1",
+    "vol_ceiling": 0.12,
+    "vol_windows": [
+      21,
+      63
+    ]
+  },
+  "config_hash": "833633785ee1d4518addb015664aa4379fc71e8c9e3edd696eae2004e8a679a8",
+  "first_execution_session": null,
+  "last_session": "2026-09-22",
+  "last_signal_month": null,
+  "pending": null,
+  "schema": 1,
+  "start_session": "2026-09-22",
+  "started_at": "2026-09-22 20:07:16.287124+00:00",
+  "units": {
+    "IGLT.L": {
+      "currency": "GBP",
+      "scale": 1.0
+    },
+    "SGLN.L": {
+      "currency": "GBp",
+      "scale": 0.01
+    },
+    "VWRP.L": {
+      "currency": "GBP",
+      "scale": 1.0
+    }
+  }
+}
