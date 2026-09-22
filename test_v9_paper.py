@@ -2,11 +2,12 @@ import copy
 import json
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 import numpy as np
 import pandas as pd
 from v9_core import CONFIG, CONFIG_HASH, SYMBOLS, signals, quote_scale, new_account, value, rebalance
-from v9_paper import CAL, process, corporate_actions, run, latest_completed
+from v9_paper import CAL, process, corporate_actions, run, latest_completed, get_market
 
 
 def fixture(end='2026-10-02'):
@@ -21,6 +22,24 @@ def fixture(end='2026-10-02'):
 
 
 class V9Tests(unittest.TestCase):
+    def test_market_alignment_old_gap_allowed_recent_gap_rejected(self):
+        frames, _, _ = fixture(end='2026-09-22')
+        class FakeTicker:
+            def __init__(self, symbol):
+                self.symbol = symbol
+                self.history_metadata = {'currency': 'GBP'}
+            def history(self, **kwargs):
+                f = frames[self.symbol].copy()
+                f.index = f.index.tz_localize('Europe/London')
+                return f
+        frames['SGLN.L'] = frames['SGLN.L'].drop(pd.Timestamp('2024-10-02'))
+        with patch('v9_paper.yf.Ticker', FakeTicker):
+            _, tri, _ = get_market(pd.Timestamp('2026-09-22T19:00Z'), pd.Timestamp('2026-09-22'))
+            self.assertNotIn(pd.Timestamp('2024-10-02'), tri.index)
+            frames['SGLN.L'] = frames['SGLN.L'].drop(pd.Timestamp('2026-09-21'))
+            with self.assertRaises(ValueError):
+                get_market(pd.Timestamp('2026-09-22T19:00Z'), pd.Timestamp('2026-09-22'))
+
     def test_units_and_currency_rejection(self):
         self.assertEqual(quote_scale('GBp') * 10000, 100)
         self.assertEqual(quote_scale('GBP'), 1)

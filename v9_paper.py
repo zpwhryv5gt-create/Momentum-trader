@@ -76,9 +76,18 @@ def get_market(now, latest):
             raise ValueError(f'No trading volume: {symbol}')
         frames[symbol] = frame
     tri = pd.DataFrame({k: f['Adj Close'] for k, f in frames.items()}).sort_index()
-    # Never manufacture missing data by filling prices forward.
-    if tri.isna().any().any():
-        raise ValueError('Unaligned daily histories')
+    # Vendors can differ on old/non-session rows. Keep observed common XLON
+    # sessions only; never fill a price. Required month-ends and the full
+    # 64-session risk window are checked explicitly, so dropping an unrelated
+    # old row cannot silently shorten a signal horizon.
+    expected = CAL.sessions_in_range(max(f.index[0] for f in frames.values()), latest).tz_localize(None)
+    tri = tri.reindex(expected)
+    missing = tri.index[tri.isna().any(axis=1)]
+    if len(missing):
+        print('Incomplete historical sessions (not filled):', [str(d.date()) for d in missing])
+    tri = tri.dropna()
+    if len(expected) < 64 or not expected[-64:].equals(tri.index[-64:]):
+        raise ValueError('Missing session in current 64-session risk window')
     return frames, tri, units
 
 
