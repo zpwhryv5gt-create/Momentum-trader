@@ -2,7 +2,7 @@
 
 Status: **WAITING_FOR_FIRST_MONTH_END_EXECUTION**.
 
-Observed 2026-09-22 20:07:16.287124+00:00; valuation at London session close 2026-09-22 15:30:00+00:00.
+Observed 2026-09-23 17:46:44.606188+00:00; valuation at London session close 2026-09-23 15:30:00+00:00.
 
 Created 2026-09-22 20:07:16.287124+00:00. Each book starts with £1,000 simulated cash.
 
