@@ -1,14 +1,5 @@
 {
-  "checked_at": "2026-09-25 17:49:25.143274+00:00",
-  "config_hash": "833633785ee1d4518addb015664aa4379fc71e8c9e3edd696eae2004e8a679a8",
-  "data_source": "Yahoo daily; unadjusted execution / adjusted signals",
-  "fills_this_run": 0,
+  "checked_at": "2026-09-25 18:50:01.616375+00:00",
   "last_session": "2026-09-25",
-  "recovered_historical_signal_days": [
-    "VWRP.L:2026-09-24",
-    "IGLT.L:2026-09-24",
-    "SGLN.L:2026-09-24"
-  ],
-  "status": "WAITING_FOR_FIRST_MONTH_END",
-  "warnings": []
+  "status": "NO_NEW_COMPLETED_SESSION"
 }
