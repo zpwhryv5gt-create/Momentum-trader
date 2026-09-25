@@ -1,16 +1,16 @@
 # V8 forward paper test
 
-Observed at 2026-09-25 08:33:07.147957+00:00; latest completed price bar starts 2026-09-25 07:00:00+00:00.
+Observed at 2026-09-25 09:32:12.574638+00:00; latest completed price bar starts 2026-09-25 08:00:00+00:00.
 
 Started 2026-09-09 16:57:19.179505+00:00 with £1,000. Simulated fills only.
 
 | Measure | Value |
 |---|---:|
-| Portfolio | £1032.13 |
-| Today, provisional until session data complete | £9.38 (0.92%) |
-| Since start | £32.13 (3.21%) |
-| VWRP since start | 2.17% |
-| Difference | 1.04 percentage points |
+| Portfolio | £1033.44 |
+| Today, provisional until session data complete | £10.69 (1.05%) |
+| Since start | £33.44 (3.34%) |
+| VWRP since start | 2.39% |
+| Difference | 0.95 percentage points |
 | Simulated strategy costs | £1.75 |
 
 Holdings (units): {"IITU.L": 18.39997225846558}.
