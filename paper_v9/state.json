@@ -43,7 +43,7 @@
       "receivables": {}
     }
   },
-  "checked_at": "2026-09-24 17:47:04.033169+00:00",
+  "checked_at": "2026-09-25 17:49:25.143274+00:00",
   "config": {
     "budgets": {
       "IGLT.L": 0.25,
@@ -70,7 +70,7 @@
   },
   "config_hash": "833633785ee1d4518addb015664aa4379fc71e8c9e3edd696eae2004e8a679a8",
   "first_execution_session": null,
-  "last_session": "2026-09-24",
+  "last_session": "2026-09-25",
   "last_signal_month": null,
   "pending": null,
   "schema": 1,
