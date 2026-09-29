@@ -3,11 +3,9 @@
   "started_at": "2026-09-09 16:57:19.179505+00:00",
   "initial_capital": 1000.0,
   "strategy": {
-    "cash": 286.9319969118751,
-    "holdings": {
-      "IITU.L": 18.39997225846558
-    },
-    "costs": 1.7528824970180301
+    "cash": 1029.1446314820712,
+    "holdings": {},
+    "costs": 2.3471280010774347
   },
   "benchmark": {
     "cash": 0.0,
@@ -16,14 +14,10 @@
     },
     "costs": 0.7993605115907275
   },
-  "pending": {
-    "recorded_at": "2026-09-28 16:34:36.124724+00:00",
-    "signal_bar": "2026-09-28 15:00:00+00:00",
-    "target": {}
-  },
+  "pending": null,
   "benchmark_pending": null,
   "last_target": {},
-  "last_bar": "2026-09-28 15:00:00+00:00",
+  "last_bar": "2026-09-29 07:00:00+00:00",
   "quote_scales": {
     "VWRP.L": {
       "currency": "GBP",
@@ -54,6 +48,6 @@
       "scale": 1.0
     }
   },
-  "checked_at": "2026-09-28 16:34:36.124724+00:00",
+  "checked_at": "2026-09-29 08:35:00.230283+00:00",
   "gate_passed": true
 }
