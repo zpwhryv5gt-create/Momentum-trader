@@ -2,7 +2,7 @@
 
 Status: **WAITING_FOR_FIRST_MONTH_END_EXECUTION**.
 
-Observed 2026-09-29 17:50:55.249391+00:00; valuation at London session close 2026-09-29 15:30:00+00:00.
+Observed 2026-09-30 17:50:37.674224+00:00; valuation at London session close 2026-09-30 15:30:00+00:00.
 
 Created 2026-09-22 20:07:16.287124+00:00. Each book starts with £1,000 simulated cash.
 
@@ -19,7 +19,7 @@ Created 2026-09-22 20:07:16.287124+00:00. Each book starts with £1,000 simulate
 V9 holdings (whole units): {}.
 Cash £1000.00; dividend receivables £0.00.
 
-Pending order: none
+Pending order: {"passive_mix": {"IGLT.L": 0.25, "SGLN.L": 0.25, "VWRP.L": 0.5}, "passive_scaled": {"IGLT.L": 0.25, "SGLN.L": 0.25, "VWRP.L": 0.5}, "trend_unscaled": {"IGLT.L": 0.08333333333333333, "SGLN.L": 0.16666666666666666, "VWRP.L": 0.5}, "v9": {"IGLT.L": 0.08333333333333333, "SGLN.L": 0.16666666666666666, "VWRP.L": 0.5}, "vwrp": {"VWRP.L": 1.0}, "vwrp_scaled": {"VWRP.L": 1.0}} for 2026-10-01
 
 Monthly 1/3/12-month trend; policy budgets 50% VWRP / 25% IGLT / 25% SGLN; estimated 12% volatility ceiling. No leverage.
 
