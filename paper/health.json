@@ -1,5 +1,7 @@
 {
-  "status": "NO_NEW_BAR",
-  "checked_at": "2026-09-29 18:38:09.825503+00:00",
-  "last_bar": "2026-09-29 15:00:00+00:00"
+  "status": "OK",
+  "checked_at": "2026-09-30 08:36:12.711184+00:00",
+  "last_bar": "2026-09-30 07:00:00+00:00",
+  "gate_passed": true,
+  "fills_this_run": 1
 }
