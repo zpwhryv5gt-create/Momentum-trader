@@ -1,25 +1,25 @@
 # V9 forward paper test
 
-Status: **WAITING_FOR_FIRST_MONTH_END_EXECUTION**.
+Status: **ACTIVE**.
 
-Observed 2026-09-30 17:50:37.674224+00:00; valuation at London session close 2026-09-30 15:30:00+00:00.
+Observed 2026-10-01 17:52:27.989556+00:00; valuation at London session close 2026-10-01 15:30:00+00:00.
 
 Created 2026-09-22 20:07:16.287124+00:00. Each book starts with £1,000 simulated cash.
 
 | Book | Value | Since start | Latest session | Costs |
 |---|---:|---:|---:|---:|
-| v9 | £1000.00 | 0.00% | 0.00% | £0.00 |
-| vwrp | £1000.00 | 0.00% | 0.00% | £0.00 |
-| passive_mix | £1000.00 | 0.00% | 0.00% | £0.00 |
-| passive_scaled | £1000.00 | 0.00% | 0.00% | £0.00 |
-| trend_unscaled | £1000.00 | 0.00% | 0.00% | £0.00 |
-| vwrp_scaled | £1000.00 | 0.00% | 0.00% | £0.00 |
-| cash | £1000.00 | 0.00% | 0.00% | £0.00 |
+| v9 | £368.52 | -63.15% | -63.15% | £0.50 |
+| vwrp | £999.26 | -0.07% | -0.07% | £0.69 |
+| passive_mix | £999.26 | -0.07% | -0.07% | £0.74 |
+| passive_scaled | £999.50 | -0.05% | -0.05% | £0.74 |
+| trend_unscaled | £999.50 | -0.05% | -0.05% | £0.50 |
+| vwrp_scaled | £999.31 | -0.07% | -0.07% | £0.69 |
+| cash | £999.31 | -0.07% | -0.07% | £0.00 |
 
-V9 holdings (whole units): {}.
-Cash £1000.00; dividend receivables £0.00.
+V9 holdings (whole units): {"VWRP.L": 3, "IGLT.L": 8, "SGLN.L": 2}.
+Cash £368.52; dividend receivables £0.00.
 
-Pending order: {"passive_mix": {"IGLT.L": 0.25, "SGLN.L": 0.25, "VWRP.L": 0.5}, "passive_scaled": {"IGLT.L": 0.25, "SGLN.L": 0.25, "VWRP.L": 0.5}, "trend_unscaled": {"IGLT.L": 0.08333333333333333, "SGLN.L": 0.16666666666666666, "VWRP.L": 0.5}, "v9": {"IGLT.L": 0.08333333333333333, "SGLN.L": 0.16666666666666666, "VWRP.L": 0.5}, "vwrp": {"VWRP.L": 1.0}, "vwrp_scaled": {"VWRP.L": 1.0}} for 2026-10-01
+Pending order: none
 
 Monthly 1/3/12-month trend; policy budgets 50% VWRP / 25% IGLT / 25% SGLN; estimated 12% volatility ceiling. No leverage.
 
