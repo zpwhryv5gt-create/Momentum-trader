@@ -2,21 +2,21 @@
 
 Status: **ACTIVE**.
 
-Observed 2026-10-01 17:52:27.989556+00:00; valuation at London session close 2026-10-01 15:30:00+00:00.
+Observed 2026-10-02 17:50:06.619597+00:00; valuation at London session close 2026-10-02 15:30:00+00:00.
 
 Created 2026-09-22 20:07:16.287124+00:00. Each book starts with £1,000 simulated cash.
 
 | Book | Value | Since start | Latest session | Costs |
 |---|---:|---:|---:|---:|
-| v9 | £368.52 | -63.15% | -63.15% | £0.50 |
-| vwrp | £999.26 | -0.07% | -0.07% | £0.69 |
-| passive_mix | £999.26 | -0.07% | -0.07% | £0.74 |
-| passive_scaled | £999.50 | -0.05% | -0.05% | £0.74 |
-| trend_unscaled | £999.50 | -0.05% | -0.05% | £0.50 |
-| vwrp_scaled | £999.31 | -0.07% | -0.07% | £0.69 |
-| cash | £999.31 | -0.07% | -0.07% | £0.00 |
+| v9 | £368.52 | -63.15% | 0.00% | £0.50 |
+| vwrp | £1002.96 | 0.30% | 0.37% | £0.69 |
+| passive_mix | £1002.96 | 0.30% | 0.37% | £0.74 |
+| passive_scaled | £1003.20 | 0.32% | 0.37% | £0.74 |
+| trend_unscaled | £1003.20 | 0.32% | 0.37% | £0.50 |
+| vwrp_scaled | £1007.47 | 0.75% | 0.82% | £0.69 |
+| cash | £1007.47 | 0.75% | 0.82% | £0.00 |
 
-V9 holdings (whole units): {"VWRP.L": 3, "IGLT.L": 8, "SGLN.L": 2}.
+V9 holdings (whole units): {"IGLT.L": 8, "SGLN.L": 2, "VWRP.L": 3}.
 Cash £368.52; dividend receivables £0.00.
 
 Pending order: none
