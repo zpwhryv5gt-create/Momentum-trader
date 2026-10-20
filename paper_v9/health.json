@@ -1,9 +1,9 @@
 {
-  "checked_at": "2026-10-19 21:44:20.645231+00:00",
+  "checked_at": "2026-10-20 20:51:14.143604+00:00",
   "config_hash": "833633785ee1d4518addb015664aa4379fc71e8c9e3edd696eae2004e8a679a8",
   "data_source": "Yahoo daily; unadjusted execution / adjusted signals",
   "fills_this_run": 0,
-  "last_session": "2026-10-19",
+  "last_session": "2026-10-20",
   "recovered_historical_signal_days": [],
   "status": "OK",
   "warnings": []
