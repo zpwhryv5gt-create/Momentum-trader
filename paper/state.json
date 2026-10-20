@@ -17,7 +17,7 @@
   "pending": null,
   "benchmark_pending": null,
   "last_target": {},
-  "last_bar": "2026-10-20 12:00:00+00:00",
+  "last_bar": "2026-10-20 15:00:00+00:00",
   "quote_scales": {
     "VWRP.L": {
       "currency": "GBP",
@@ -48,6 +48,6 @@
       "scale": 1.0
     }
   },
-  "checked_at": "2026-10-20 13:37:44.289039+00:00",
+  "checked_at": "2026-10-20 18:30:46.066186+00:00",
   "gate_passed": true
 }
