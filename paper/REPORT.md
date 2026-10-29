@@ -1,6 +1,6 @@
 # V8 forward paper test
 
-Observed at 2026-10-28 15:10:54.219465+00:00; latest completed price bar starts 2026-10-28 14:00:00+00:00.
+Observed at 2026-10-29 15:16:23.069208+00:00; latest completed price bar starts 2026-10-29 14:00:00+00:00.
 
 Started 2026-09-09 16:57:19.179505+00:00 with £1,000. Simulated fills only.
 
@@ -9,12 +9,12 @@ Started 2026-09-09 16:57:19.179505+00:00 with £1,000. Simulated fills only.
 | Portfolio | £1025.63 |
 | Today, provisional until session data complete | £0.00 (0.00%) |
 | Since start | £25.63 (2.56%) |
-| VWRP since start | 0.49% |
-| Difference | 2.07 percentage points |
+| VWRP since start | 0.13% |
+| Difference | 2.43 percentage points |
 | Simulated strategy costs | £5.26 |
 
 Holdings (units): {}.
 
-Cash: £1025.63. Pending target: null.
+Cash: £1025.63. Pending target: {"recorded_at": "2026-10-29 15:16:23.069208+00:00", "signal_bar": "2026-10-29 14:00:00+00:00", "target": {"CSP1.L": 1.0}}.
 
 The legacy target-only log is excluded. Both books start together and pay 8 bps per side plus 15 bps FX on USD trades; cash earns zero. Yahoo prices are indicative, not broker quotes.
