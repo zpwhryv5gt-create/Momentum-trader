@@ -63,7 +63,7 @@
       "receivables": {}
     }
   },
-  "checked_at": "2026-10-29 21:59:22.653881+00:00",
+  "checked_at": "2026-10-30 21:41:15.195414+00:00",
   "config": {
     "budgets": {
       "IGLT.L": 0.25,
@@ -90,9 +90,77 @@
   },
   "config_hash": "833633785ee1d4518addb015664aa4379fc71e8c9e3edd696eae2004e8a679a8",
   "first_execution_session": "2026-10-01",
-  "last_session": "2026-10-29",
-  "last_signal_month": "2026-09",
-  "pending": null,
+  "last_session": "2026-10-30",
+  "last_signal_month": "2026-10",
+  "pending": {
+    "config_hash": "833633785ee1d4518addb015664aa4379fc71e8c9e3edd696eae2004e8a679a8",
+    "data_sha256": "670974a98e607fb942ef594f67db38f1ecf8ecc13054887dcd4ef74a46cf8f03",
+    "details": {
+      "assets": {
+        "IGLT.L": {
+          "positive_votes": 2,
+          "preliminary_weight": 0.16666666666666666,
+          "returns": {
+            "1": 0.015287344545299453,
+            "12": -0.006412308231218189,
+            "3": 0.005481573399761519
+          }
+        },
+        "SGLN.L": {
+          "positive_votes": 0,
+          "preliminary_weight": 0.0,
+          "returns": {
+            "1": -0.07093482554312036,
+            "12": -0.04175861483619081,
+            "3": -0.029902045024918333
+          }
+        },
+        "VWRP.L": {
+          "positive_votes": 2,
+          "preliminary_weight": 0.3333333333333333,
+          "returns": {
+            "1": -0.03152968473256523,
+            "12": 0.10147190206084455,
+            "3": 0.01092259969583309
+          }
+        }
+      },
+      "equity_forecast_vol": 0.11115388620652593,
+      "forecast_vol": 0.03876263042617879,
+      "passive_forecast_vol": 0.09860720394756446,
+      "scale": 1.0
+    },
+    "execution_session": "2026-11-02",
+    "id": "833633785ee1:2026-10",
+    "recorded_at": "2026-10-30 21:41:15.195414+00:00",
+    "signal_session": "2026-10-30",
+    "status": "PENDING_SIMULATED_NEXT_SESSION_CLOSE",
+    "targets": {
+      "passive_mix": {
+        "IGLT.L": 0.25,
+        "SGLN.L": 0.25,
+        "VWRP.L": 0.5
+      },
+      "passive_scaled": {
+        "IGLT.L": 0.25,
+        "SGLN.L": 0.25,
+        "VWRP.L": 0.5
+      },
+      "trend_unscaled": {
+        "IGLT.L": 0.16666666666666666,
+        "SGLN.L": 0.0,
+        "VWRP.L": 0.3333333333333333
+      },
+      "v9": {
+        "IGLT.L": 0.16666666666666666,
+        "SGLN.L": 0.0,
+        "VWRP.L": 0.3333333333333333
+      },
+      "vwrp_scaled": {
+        "VWRP.L": 1.0
+      }
+    }
+  },
   "schema": 1,
   "start_session": "2026-09-22",
   "started_at": "2026-09-22 20:07:16.287124+00:00",
