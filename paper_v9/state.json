@@ -14,7 +14,14 @@
         "SGLN.L": 4,
         "VWRP.L": 3
       },
-      "receivables": {}
+      "receivables": {
+        "IGLT.L:2026-11-19": {
+          "amount": 5.5225,
+          "ex_date": "2026-11-19",
+          "per_unit": 0.2209,
+          "quantity": 25
+        }
+      }
     },
     "passive_scaled": {
       "cash": 84.81795916558835,
@@ -24,7 +31,14 @@
         "SGLN.L": 4,
         "VWRP.L": 3
       },
-      "receivables": {}
+      "receivables": {
+        "IGLT.L:2026-11-19": {
+          "amount": 5.5225,
+          "ex_date": "2026-11-19",
+          "per_unit": 0.2209,
+          "quantity": 25
+        }
+      }
     },
     "trend_unscaled": {
       "cash": 546.8682420227051,
@@ -33,7 +47,14 @@
         "IGLT.L": 16,
         "VWRP.L": 2
       },
-      "receivables": {}
+      "receivables": {
+        "IGLT.L:2026-11-19": {
+          "amount": 3.5344,
+          "ex_date": "2026-11-19",
+          "per_unit": 0.2209,
+          "quantity": 16
+        }
+      }
     },
     "v9": {
       "cash": 546.8682420227051,
@@ -42,7 +63,14 @@
         "IGLT.L": 16,
         "VWRP.L": 2
       },
-      "receivables": {}
+      "receivables": {
+        "IGLT.L:2026-11-19": {
+          "amount": 3.5344,
+          "ex_date": "2026-11-19",
+          "per_unit": 0.2209,
+          "quantity": 16
+        }
+      }
     },
     "vwrp": {
       "cash": 133.74758498535152,
@@ -61,7 +89,7 @@
       "receivables": {}
     }
   },
-  "checked_at": "2026-11-18 23:33:48.831522+00:00",
+  "checked_at": "2026-11-19 23:47:23.387865+00:00",
   "config": {
     "budgets": {
       "IGLT.L": 0.25,
@@ -88,7 +116,7 @@
   },
   "config_hash": "833633785ee1d4518addb015664aa4379fc71e8c9e3edd696eae2004e8a679a8",
   "first_execution_session": "2026-10-01",
-  "last_session": "2026-11-18",
+  "last_session": "2026-11-19",
   "last_signal_month": "2026-10",
   "pending": null,
   "schema": 1,

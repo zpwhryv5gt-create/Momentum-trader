@@ -1,10 +1,15 @@
 {
-  "checked_at": "2026-11-18 23:33:48.831522+00:00",
+  "checked_at": "2026-11-19 23:47:23.387865+00:00",
   "config_hash": "833633785ee1d4518addb015664aa4379fc71e8c9e3edd696eae2004e8a679a8",
   "data_source": "Yahoo daily; unadjusted execution / adjusted signals",
   "fills_this_run": 0,
-  "last_session": "2026-11-18",
+  "last_session": "2026-11-19",
   "recovered_historical_signal_days": [],
-  "status": "OK",
-  "warnings": []
+  "status": "OK_DIVIDEND_PAYMENT_PENDING",
+  "warnings": [
+    "passive_mix: payment date needed for IGLT.L:2026-11-19",
+    "passive_scaled: payment date needed for IGLT.L:2026-11-19",
+    "trend_unscaled: payment date needed for IGLT.L:2026-11-19",
+    "v9: payment date needed for IGLT.L:2026-11-19"
+  ]
 }
