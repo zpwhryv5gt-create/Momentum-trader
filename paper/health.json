@@ -1,7 +1,4 @@
 {
-  "status": "OK",
-  "checked_at": "2026-11-27 18:15:15.807940+00:00",
-  "last_bar": "2026-11-27 16:00:00+00:00",
-  "gate_passed": false,
-  "fills_this_run": 0
+  "status": "OUTSIDE_SESSION",
+  "checked_at": "2026-11-28 01:30:12.450643+00:00"
 }
